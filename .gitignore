@@ -1,0 +1,30 @@
+# Binários e builds
+build/
+bin/
+*.o
+*.obj
+*.exe
+*.out
+*.tar
+
+# Profiling e ferramentas NVIDIA
+*.nsys-rep
+*.qdstrm
+*.ncu-rep
+
+# Dados volumosos de simulação
+*.vtk
+*.vti
+*.dat
+*.raw
+*.csv
+*.pvd
+*.data
+*.vtp
+
+
+# IDEs e sistema
+.vscode/
+.idea/
+*.swp
+*~
