@@ -1,0 +1,41 @@
+{
+  "simulation": {
+    "nx": 400,
+    "ny": 200,
+    "nz": 1,
+    "grid_type": 0,
+    "max_steps": 10000,
+    "export_freq": 200,
+    "output_prefix": "output/half_circle_sim",
+    "max_allowed_bytes": "80GB",
+    "rho0": 1.0,
+    "ux0": 0.08,
+    "uy0": 0.0
+    
+  },
+  "collision": {
+    "type": "BGK",
+    "tau_BGK": 0.56,
+    "tau_TRT": 0.56,
+    "tau_MRT_filename": ""
+  },
+  "boundaries": {
+    "x0": { "condition": "DIRICHLET", "solver": "ZOUHE", "cell_type": "INLET",  "vx": 0.08, "vy": 0.0, "rho": 1.0 },
+    "x1": { "condition": "DIRICHLET", "solver": "ZOUHE", "cell_type": "OUTLET", "vx": 0.0,  "vy": 0.0, "rho": 1.0 },
+    "y0": { "condition": "DIRICHLET", "solver": "BOUNCEBACK", "cell_type": "SOLID" },
+    "y1": { "condition": "DIRICHLET", "solver": "BOUNCEBACK", "cell_type": "SOLID" }
+  },
+  "obstacles": [
+    {
+      "type": "PROCEDURAL",
+      "format": "CIRCLE",
+      "typeboundary": "SOLID",
+      "offset_x": 200,
+      "offset_y": 0,
+      "radius": 30.0,
+      "rho": 1.0,
+      "vx": 0.0,
+      "vy": 0.0
+    }
+  ]
+}
