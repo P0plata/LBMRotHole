@@ -1,39 +1,40 @@
 {
   "simulation": {
-    "nx": 400,
-    "ny": 200,
+    "use_custom_init": false,
+    "nx": 1200,
+    "ny": 400,
     "nz": 1,
     "grid_type": 0,
-    "max_steps": 10000,
-    "export_freq": 200,
-    "output_prefix": "output/half_circle_sim",
+    "max_steps": 32000,
+    "export_freq": 50,
+    "output_prefix": "output_perfect/test_pedido",
     "max_allowed_bytes": "80GB",
-    "rho0": 1.0,
-    "ux0": 0.08,
+    "rho0": 100.0,
+    "ux0": 0.1,
     "uy0": 0.0
     
   },
   "collision": {
-    "type": "BGK",
-    "tau_BGK": 0.56,
-    "tau_TRT": 0.56,
+    "type": "TRT",
+    "tau_BGK": 0.55,
+    "tau_TRT": 1.0,
     "tau_MRT_filename": ""
   },
   "boundaries": {
-    "x0": { "condition": "DIRICHLET", "solver": "ZOUHE", "cell_type": "INLET",  "vx": 0.08, "vy": 0.0, "rho": 1.0 },
-    "x1": { "condition": "DIRICHLET", "solver": "ZOUHE", "cell_type": "OUTLET", "vx": 0.0,  "vy": 0.0, "rho": 1.0 },
-    "y0": { "condition": "DIRICHLET", "solver": "BOUNCEBACK", "cell_type": "SOLID" },
-    "y1": { "condition": "DIRICHLET", "solver": "BOUNCEBACK", "cell_type": "SOLID" }
+    "x0": { "condition": "DIRICHLET", "solver": "ZOUHE", "cell_type": "INLET",  "vx": 0.10, "vy": 0.0, "rho": 100.0 },
+    "x1": { "condition": "DIRICHLET", "solver": "ZOUHE", "cell_type": "OUTLET", "vx": 0.0,  "vy": 0.0, "rho": 100.0, "sponge_width": 60, "sponge_sigma_max": 0.2 },
+    "y0": { "condition": "PERIODIC", "cell_type": "FLUID" },
+    "y1": { "condition": "PERIODIC", "cell_type": "FLUID" }
   },
   "obstacles": [
     {
       "type": "PROCEDURAL",
       "format": "CIRCLE",
       "typeboundary": "SOLID",
-      "offset_x": 200,
-      "offset_y": 0,
-      "radius": 30.0,
-      "rho": 1.0,
+      "offset_x": 250,
+      "offset_y": 200,
+      "radius": 25.0,
+      "rho": 100.0,
       "vx": 0.0,
       "vy": 0.0
     }

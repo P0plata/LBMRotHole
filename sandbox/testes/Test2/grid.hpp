@@ -75,6 +75,9 @@ struct Grid {
     std::vector<SpongeNode> sponge_nodes;        // Zonas de amortecimento
 
 
+    // --- Tempo escrita ---
+    double vtk_io_time_sec{0.0};
+
     // Construtor vazio
     Grid() = default;
 
@@ -111,6 +114,8 @@ struct Grid {
             deallocate();
             throw std::bad_alloc();
         }
+
+        std::memset(flag_field_ptr, 0, flag_bytes);
 
     }
 

@@ -15,6 +15,7 @@ FetchContent_MakeAvailable(json)
 add_executable(run_test
     main.cpp
     initializer.cpp
+    custom_init.cpp
     geometry_builder.cpp
     vtk_exporter.cpp
     utils.cpp

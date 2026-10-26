@@ -114,14 +114,16 @@ void Initializer::load_config_from_json(const std::string& json_filepath, Simcon
 
     // 1. Parâmetros da Simulação
     const auto& sim = j.at("simulation");
-    cfg.nx            = sim.at("nx").get<int>();
-    cfg.ny            = sim.at("ny").get<int>();
-    cfg.nz            = sim.value("nz", 1);
-    cfg.grid_size     = static_cast<size_t>(cfg.nx) * cfg.ny * cfg.nz;
-    cfg.grid_type     = sim.value("grid_type", 0);
-    cfg.max_steps     = sim.at("max_steps").get<int>();
-    cfg.export_freq   = sim.at("export_freq").get<int>();
-    cfg.output_prefix = sim.at("output_prefix").get<std::string>();
+    cfg.use_custom_init = sim.value("use_custom_init", false);
+    cfg.nx              = sim.at("nx").get<int>();
+    cfg.ny              = sim.at("ny").get<int>();
+    cfg.ny              = sim.at("ny").get<int>();
+    cfg.nz              = sim.value("nz", 1);
+    cfg.grid_size       = static_cast<size_t>(cfg.nx) * cfg.ny * cfg.nz;
+    cfg.grid_type       = sim.value("grid_type", 0);
+    cfg.max_steps       = sim.at("max_steps").get<int>();
+    cfg.export_freq     = sim.at("export_freq").get<int>();
+    cfg.output_prefix   = sim.at("output_prefix").get<std::string>();
     
     // Leitura e conversão de max_allowed_bytes
     if (sim.contains("max_allowed_bytes")) {
@@ -224,6 +226,11 @@ void Initializer::initialize(Grid& grid, const Simconfig& cfg) {
 
     // FASE 3: Alocar macro-bloco de 17 planos de populações e inicializar no equilíbrio
     grid.allocate_populations(cfg.max_allowed_bytes);
+
+    if (cfg.use_custom_init) {
+        Initializer::apply_custom_initialization(grid, cfg);
+        return;
+    }
 
     const double rho  = cfg.rho0;
     const double ux   = cfg.ux0;

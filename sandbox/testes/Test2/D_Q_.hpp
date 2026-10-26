@@ -39,7 +39,7 @@ namespace D2Q9 {
 
     // src_idx_periodico
     constexpr inline size_t src_idx_p(int x, int y, int nx, int ny, int d){
-        return static_cast<size_t>((x - cx[d] + nx) % nx) * nx + ((y - cy[d] + ny) % ny);
+        return static_cast<size_t>((x - cx[d] + nx) % nx) + (static_cast<size_t>((y - cy[d] + ny) % ny) * nx);
     }
 
 }

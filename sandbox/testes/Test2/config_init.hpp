@@ -37,6 +37,7 @@ struct GeometryConfig {
 
 struct Simconfig {
     // Simulation
+    bool use_custom_init{false};
     int nx{0};
     int ny{0};
     int nz{1};
@@ -83,6 +84,7 @@ class Initializer {
 public:
     static void load_config_from_json(const std::string& json_filepath, Simconfig& config);
     static void initialize(Grid& grid, const Simconfig& config);
+    static void apply_custom_initialization(Grid& grid, const Simconfig& config);
 };
 
 #endif // CONFIG_INIT_HPP

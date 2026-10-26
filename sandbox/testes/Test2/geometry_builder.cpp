@@ -255,7 +255,7 @@ void build_boundary_lists(Grid& grid, const Simconfig& config) {
             }
 
             // 2. WallLinks (Bouzidi / Bounce-Back)
-            if (is_fluid_domain(cell)) {
+            if (is_fluid_domain(cell) || cell == CellType::INLET || cell == CellType::OUTLET) {
                 for (uint8_t d = 0; d < 8; ++d) {
                     int nx_nb = x + D2Q9::cx[d];
                     int ny_nb = y + D2Q9::cy[d];
@@ -273,7 +273,7 @@ void build_boundary_lists(Grid& grid, const Simconfig& config) {
                             if (periodic_y) y_ff = (y_ff + ny) % ny;
 
                             // CORREÇÃO: Verificar se a célula de trás (x_ff, y_ff) é efetivamente FLUID
-                            bool valid_ff = (x_ff >= 0 && x_ff < nx && y_ff >= 0 && y_ff < ny) &&
+                            bool valid_ff = is_fluid_domain(cell) && (x_ff >= 0 && x_ff < nx && y_ff >= 0 && y_ff < ny) &&
                                             is_fluid_domain(grid.flag_field_ptr[y_ff * nx + x_ff]);
                                             
                             int ff_idx = valid_ff ? (y_ff * nx + x_ff) : idx;
@@ -300,7 +300,7 @@ void build_boundary_lists(Grid& grid, const Simconfig& config) {
                 }
             }
             // 3. INLET / OUTLET (Mantém-se igual)
-            else if (cell == CellType::INLET || cell == CellType::OUTLET) {
+            if (cell == CellType::INLET || cell == CellType::OUTLET) {
                 uint8_t normal = 0;
                 int face_id = 0;
 

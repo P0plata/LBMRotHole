@@ -109,7 +109,7 @@ static inline void pull_and_collide_node(int x, int y, int nx, int ny, size_t pi
     const CellType cell = grid.flag_field_ptr[idx];
     if (cell != CellType::FLUID && cell != CellType::SPONGE) return;
 
-    double feq;
+    //double feq;
     double f0 = grid.f0_ptr[idx];
     double f[8];
 
@@ -346,7 +346,9 @@ void run_simulation(Grid& grid, const Simconfig& cfg) {
             if (cfg.export_freq > 0 && (step % cfg.export_freq == 0)) {
                 #pragma omp single
                 {
+                    double t0 = omp_get_wtime();
                     VTKExporter::export_to_vti(grid, step, cfg.output_prefix);
+                    grid.vtk_io_time_sec += (omp_get_wtime() - t0);
                 }
             }
 
@@ -375,12 +377,16 @@ void run_simulation(Grid& grid, const Simconfig& cfg) {
                         pull_and_collide_node<ColType, false>(nx - 1, y, nx, ny, pitch, grid, omega_bgk, omega_trt, cfg.s_MRT);
                     }
                 }
-                #pragma omp barrier // Sincroniza tudo antes de aplicar as listas de fronteira
 
             // 3. Aplicar Fronteiras (Esponjas, Inlets, Outlets correm com 'nowait' e sincronizam no fim de wall_links)
-            apply_sponges(grid);
+            //#pragma omp barrier // Sincroniza tudo antes de aplicar as listas de fronteira
+
             apply_open_boundaries<ColType, true>(grid, grid.inlet_nodes, omega_bgk, omega_trt, cfg.s_MRT);
             apply_open_boundaries<ColType, false>(grid, grid.outlet_nodes, omega_bgk, omega_trt, cfg.s_MRT);
+            
+            #pragma omp barrier
+
+            apply_sponges(grid);
             apply_wall_links(grid, grid.f2_ptr, per_x, per_y); // Barreira implícita aqui!
 
             // 4. Trocar ponteiros f1_ptr <-> f2_ptr

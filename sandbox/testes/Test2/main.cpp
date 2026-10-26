@@ -54,13 +54,21 @@ int main(int argc, char* argv[]) {
         }
 
         auto t_sim_end = std::chrono::high_resolution_clock::now();
-        double sim_sec = std::chrono::duration<double>(t_sim_end - t_sim_start).count();
-        double mlups   = (static_cast<double>(grid.size) * cfg.max_steps) / (sim_sec * 1e6);
+        double total_sec   = std::chrono::duration<double>(t_sim_end - t_sim_start).count();
+        double io_sec      = grid.vtk_io_time_sec;
+        double compute_sec = std::max(1e-9, total_sec - io_sec);
+
+        double mlups_pure  = (static_cast<double>(grid.size) * cfg.max_steps) / (compute_sec * 1e6);
+        double mlups_total = (static_cast<double>(grid.size) * cfg.max_steps) / (total_sec * 1e6);
+        double io_pct      = (io_sec / total_sec) * 100.0;
 
         std::cout << "========================================================\n";
         std::cout << "  Simulacao Concluida com Sucesso!\n";
-        std::cout << "  Tempo Total:  " << std::fixed << std::setprecision(3) << sim_sec << " s\n";
-        std::cout << "  Performance:  " << std::fixed << std::setprecision(2) << mlups << " MLUPS\n";
+        std::cout << "  Tempo Total:        " << std::fixed << std::setprecision(3) << total_sec << " s\n";
+        std::cout << "  -> Tempo Solver:    " << std::fixed << std::setprecision(3) << compute_sec << " s (" << std::setprecision(1) << (100.0 - io_pct) << "%)\n";
+        std::cout << "  -> Tempo VTK (I/O): " << std::fixed << std::setprecision(3) << io_sec << " s (" << std::setprecision(1) << io_pct << "%)\n";
+        std::cout << "  Performance Solver: " << std::fixed << std::setprecision(2) << mlups_pure << " MLUPS (Puro)\n";
+        std::cout << "  Performance Global: " << std::fixed << std::setprecision(2) << mlups_total << " MLUPS (Com I/O)\n";
         std::cout << "========================================================\n";
 
     } catch (const std::exception& e) {
