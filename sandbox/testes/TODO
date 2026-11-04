@@ -4,4 +4,4 @@
 
 // mudar grid type para enum class
 // [] Corrigir esponjas reverificar o geometrybuilde e o initializer
-  
+// Quando esta fx, fy isto sginifica oque o user quiser pode significar força direto ou gravidade para por força

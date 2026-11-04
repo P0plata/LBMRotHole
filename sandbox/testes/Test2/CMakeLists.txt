@@ -15,11 +15,12 @@ FetchContent_MakeAvailable(json)
 add_executable(run_test
     main.cpp
     initializer.cpp
-    custom_init.cpp
+    custom_functions.cpp
     geometry_builder.cpp
     vtk_exporter.cpp
     utils.cpp
     solver_d2q9.cpp
+
 )
 
 target_link_libraries(run_test PRIVATE OpenMP::OpenMP_CXX nlohmann_json::nlohmann_json)

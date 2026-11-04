@@ -50,7 +50,7 @@ struct SpongeNode {
 
 static_assert(sizeof(WallLink) == 16, "WallLink tem de ter exatamente 16 bytes!");
 static_assert(sizeof(OpenBoundaryNode) == 16, "OpenBoundaryNode tem de ter 16 bytes!");
-static_assert(sizeof(SpongeNode) == 20, "SpongeNode tem de ter exatamente 32 bytes!");
+static_assert(sizeof(SpongeNode) == 20, "SpongeNode tem de ter exatamente 20 bytes!");
 
 struct Grid {
     int nx{0};
@@ -67,6 +67,9 @@ struct Grid {
     // --- MAPA DENSO DA GEOMETRIA (1 byte/célula) ---
     CellType *flag_field_ptr{nullptr};
 
+    double *fxy_raw_ptr{nullptr}; // Bloco de forças externas (opcional)
+    double *fx_ptr{nullptr}; // Forças externas X (opcional)
+    double *fy_ptr{nullptr}; // Forças externas Y (opcional)
 
     // --- LISTAS ESPARSAS ESPECIALIZADAS ---
     std::vector<WallLink> wall_links;            // Paredes retas (q=0.5) ou curvas (Bouzidi)
@@ -90,7 +93,7 @@ struct Grid {
     Grid(const Grid&) = delete;
     Grid& operator=(const Grid&) = delete;
 
-    void allocate_geometry(int x, int y){
+    void allocate_geometry(int x, int y, bool forces = false) {
         
         
         if (x <= 0 || y <= 0) {
@@ -117,6 +120,20 @@ struct Grid {
 
         std::memset(flag_field_ptr, 0, flag_bytes);
 
+        if (forces) {
+            // Aloca forças externas X e Y (opcional)
+            size_t force_bytes = 2 * plane_pitch * sizeof(double);
+            fxy_raw_ptr = static_cast<double*>(std::aligned_alloc(ALIGNMENT, force_bytes));
+
+            if (!fxy_raw_ptr) {
+                deallocate();
+                throw std::bad_alloc();
+            }
+
+            std::memset(fxy_raw_ptr, 0, force_bytes);
+            fx_ptr = fxy_raw_ptr;
+            fy_ptr = fxy_raw_ptr + plane_pitch;
+        }
     }
 
         // Aloca os blocos densos assim que nx e ny forem conhecidos
@@ -156,6 +173,10 @@ struct Grid {
             std::free(flag_field_ptr);
             flag_field_ptr = nullptr;
         }
+        if (fxy_raw_ptr) {
+            std::free(fxy_raw_ptr);
+            fxy_raw_ptr = fx_ptr = fy_ptr = nullptr;
+        }
 
         wall_links.clear();   wall_links.shrink_to_fit();
         inlet_nodes.clear();  inlet_nodes.shrink_to_fit();
@@ -173,11 +194,12 @@ struct Grid {
     size_t memory_usage_bytes() const noexcept {
         size_t flag_bytes = ((size + (ALIGNMENT - 1)) / ALIGNMENT) * ALIGNMENT;
         size_t pop_bytes  = f_raw_ptr ? (17 * plane_pitch * sizeof(double)) : 0;
+        size_t force_bytes = fxy_raw_ptr ? (2 * plane_pitch * sizeof(double)) : 0;
         size_t bnd_bytes  = wall_links.capacity()   * sizeof(WallLink) +
                             inlet_nodes.capacity()  * sizeof(OpenBoundaryNode) +
                             outlet_nodes.capacity() * sizeof(OpenBoundaryNode) +
                             sponge_nodes.capacity() * sizeof(SpongeNode);
-        return flag_bytes + pop_bytes + bnd_bytes;
+        return flag_bytes + pop_bytes + force_bytes + bnd_bytes;
         }
 
 };

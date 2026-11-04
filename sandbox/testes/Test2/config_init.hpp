@@ -3,8 +3,18 @@
 
 #include "grid.hpp"
 #include "utils.hpp"
+#include "custom_functions.hpp"
 #include <string>
 #include <vector>
+#include "D_Q_.hpp"
+#include <fstream>
+#include <stdexcept>
+#include <cctype>
+#include <algorithm>
+#include <nlohmann/json.hpp>
+#include <omp.h>
+#include <limits>
+
 
 enum class TypeGen : uint8_t { FILE = 0, PROCEDURAL = 1 };
 enum class FormatType : uint8_t { RAW = 0, PGM = 1, CIRCLE = 2, RECTANGLE = 3 };
@@ -53,6 +63,12 @@ struct Simconfig {
     double ux0{0.0};
     double uy0{0.0};
 
+    // Forces
+    bool use_forces{false};
+    int center_x{0};
+    int center_y{0};
+    double g_mass{1.0};
+
     // Geometry
     std::vector<GeometryConfig> obstacles;
 
@@ -83,8 +99,8 @@ namespace GeometryBuilder {
 class Initializer {
 public:
     static void load_config_from_json(const std::string& json_filepath, Simconfig& config);
-    static void initialize(Grid& grid, const Simconfig& config);
-    static void apply_custom_initialization(Grid& grid, const Simconfig& config);
+    static void initialize(Grid& grid, const Simconfig& config, Custom::CustomForces& forces_struct);
+    
 };
 
 #endif // CONFIG_INIT_HPP

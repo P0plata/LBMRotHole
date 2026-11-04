@@ -1,10 +1,7 @@
+#include "custom_functions.hpp"
 #include "config_init.hpp"
-#include "D_Q_.hpp"
-#include <random>
-#include <cmath>
-#include <omp.h>
 
-void Initializer::apply_custom_initialization(Grid& grid, const Simconfig& cfg) {
+void Custom::apply_custom_initialization(Grid& grid, const Simconfig& cfg) {
     const double rho0  = cfg.rho0;
     const double u_base = (std::abs(cfg.ux0) > 1e-9) ? cfg.ux0 : 0.12; // Velocidade base (podes ajustar via ux0 no JSON)
     const int nx       = grid.nx;
@@ -51,3 +48,47 @@ void Initializer::apply_custom_initialization(Grid& grid, const Simconfig& cfg) 
         }
     }
 }
+
+void Custom::initialize_custom_forces(Grid& grid, const Simconfig& cfg, Custom::CustomForces& forces_struct) {
+    // Inicialização de quaisquer parâmetros globais necessários para as forças personalizadas
+    
+    if (!cfg.use_forces) {
+        forces_struct.fx_ptr = nullptr;
+        forces_struct.fy_ptr = nullptr;
+        forces_struct.nx = grid.nx;
+        forces_struct.ny = grid.ny;
+        return;
+    }
+    
+    const int center_x = cfg.center_x;
+    const int center_y = cfg.center_y;
+    const double g_mass = cfg.g_mass; // Massa do corpo central (ou outro parâmetro relevante)
+
+
+    if (!grid.fx_ptr || !grid.fy_ptr) {
+        throw std::runtime_error("Forças externas não alocadas na grelha. Certifique-se de que 'use_forces' está definido como true.");
+    }
+
+    forces_struct.fx_ptr = grid.fx_ptr;
+    forces_struct.fy_ptr = grid.fy_ptr;
+    forces_struct.nx = grid.nx;
+    forces_struct.ny = grid.ny;
+
+    #pragma omp parallel for schedule(static)
+    for (int y = 0; y < forces_struct.ny; ++y) {
+        for (int x = 0; x < forces_struct.nx; ++x) {
+            size_t idx = y * forces_struct.nx + x;
+        
+            double dx = center_x - x;
+            double dy = center_y - y;
+            // Softening (eps2 = 15^2 = 225.0): evita força infinita em r=1 e cria um funil suave!
+            double r2_soft = dx * dx + dy * dy + 225.0; 
+            double r_soft  = std::sqrt(r2_soft);
+
+            forces_struct.fx_ptr[idx] = g_mass * dx / (r2_soft * r_soft);
+            forces_struct.fy_ptr[idx] = g_mass * dy / (r2_soft * r_soft);
+        }
+        
+    }
+}
+

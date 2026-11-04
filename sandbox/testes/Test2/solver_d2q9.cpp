@@ -5,8 +5,8 @@ namespace SolverD2Q9 {
 // ============================================================================
 // 1. AS 3 FUNÇÕES DE COLISÃO SEPARADAS (static inline -> Zero overhead)
 // ============================================================================
-
-static inline void collide_bgk(double& f0, double f[8], double rho, double ux, double uy, double omega) noexcept {
+template <bool UseForces>
+static inline void collide_bgk(double& f0, double f[8], double rho, double ux, double uy, double fx, double fy, double omega) noexcept {
     const double u_sq = ux * ux + uy * uy;
 
     f0   -= omega * (f0 - D2Q9::compute_feq0(rho, u_sq));
@@ -18,10 +18,26 @@ static inline void collide_bgk(double& f0, double f[8], double rho, double ux, d
     f[5] -= omega * (f[5] - D2Q9::compute_feq(5, rho, ux, uy, u_sq));
     f[6] -= omega * (f[6] - D2Q9::compute_feq(6, rho, ux, uy, u_sq));    
     f[7] -= omega * (f[7] - D2Q9::compute_feq(7, rho, ux, uy, u_sq));
+
+    if constexpr (UseForces) {
+        const double force_factor = (1.0- 0.5 * omega);
+        const double u_dot_F = ux * fx + uy * fy;
+        f0   += D2Q9::compute_S0_guo(u_dot_F, force_factor);
+        f[0] += D2Q9::compute_S_guo(0, ux, uy, fx, fy, u_dot_F, force_factor);
+        f[1] += D2Q9::compute_S_guo(1, ux, uy, fx, fy, u_dot_F, force_factor);
+        f[2] += D2Q9::compute_S_guo(2, ux, uy, fx, fy, u_dot_F, force_factor);
+        f[3] += D2Q9::compute_S_guo(3, ux, uy, fx, fy, u_dot_F, force_factor);
+        f[4] += D2Q9::compute_S_guo(4, ux, uy, fx, fy, u_dot_F, force_factor);
+        f[5] += D2Q9::compute_S_guo(5, ux, uy, fx, fy, u_dot_F, force_factor);
+        f[6] += D2Q9::compute_S_guo(6, ux, uy, fx, fy, u_dot_F, force_factor);
+        f[7] += D2Q9::compute_S_guo(7, ux, uy, fx, fy, u_dot_F, force_factor);
+    }
+
 }
 
+template <bool UseForces>
 static inline void collide_trt(double& f0, double f[8], double rho, double ux, double uy,
-                               double omega_p, double omega_m) noexcept {
+                               double fx, double fy, double omega_p, double omega_m) noexcept {
     const double u_sq = ux * ux + uy * uy;
     f0 -= omega_p * (f0 - D2Q9::compute_feq0(rho, u_sq));
 
@@ -87,13 +103,14 @@ static inline void collide_mrt(double& f0, double f[8], double rho, double ux, d
 }
 
 // Disparo em tempo de compilação para a função de colisão correta
-template <CollisionType ColType>
+template <CollisionType ColType, bool UseForces>
 static inline void dispatch_collision(double& f0, double f[8], double rho, double ux, double uy,
-                                      double omega_bgk, double omega_trt, const double s_mrt[9]) noexcept {
+                                      double fx, double fy, double omega_bgk, double omega_trt, const double s_mrt[9]) noexcept {
+                                        
     if constexpr (ColType == CollisionType::BGK) {
-        collide_bgk(f0, f, rho, ux, uy, omega_bgk);
+        collide_bgk<UseForces>(f0, f, rho, ux, uy, fx, fy, omega_bgk);
     } else if constexpr (ColType == CollisionType::TRT) {
-        collide_trt(f0, f, rho, ux, uy, omega_bgk, omega_trt);
+        collide_trt<UseForces>(f0, f, rho, ux, uy, fx, fy, omega_bgk, omega_trt);
     } else if constexpr (ColType == CollisionType::MRT) {
         collide_mrt(f0, f, rho, ux, uy, s_mrt);
     }
@@ -102,9 +119,9 @@ static inline void dispatch_collision(double& f0, double f[8], double rho, doubl
 // ============================================================================
 // 2. PULL + COLLIDE POR NÓ DE FLUIDO
 // ============================================================================
-template <CollisionType ColType, bool IsInterior>
+template <CollisionType ColType, bool IsInterior, bool UseForces>
 static inline void pull_and_collide_node(int x, int y, int nx, int ny, size_t pitch, Grid& grid,
-                                         double omega_bgk, double omega_trt, const double s_mrt[9]) noexcept {
+                                         double omega_bgk, double omega_trt, const double s_mrt[9], int step,  Custom::CustomForces& forces_struct) noexcept {
     const size_t idx = static_cast<size_t>(y) * nx + x;
     const CellType cell = grid.flag_field_ptr[idx];
     if (cell != CellType::FLUID && cell != CellType::SPONGE) return;
@@ -151,10 +168,26 @@ static inline void pull_and_collide_node(int x, int y, int nx, int ny, size_t pi
 
     const double rho = f0 + f[0] + f[1] + f[2] + f[3] + f[4] + f[5] + f[6] + f[7];
     const double inv_rho = 1.0 / rho;
-    const double ux = ((f[0] - f[2]) + (f[4] - f[5] - f[6] + f[7])) * inv_rho;
-    const double uy = ((f[1] - f[3]) + (f[4] + f[5] - f[6] - f[7])) * inv_rho;
 
-    dispatch_collision<ColType>(f0, f, rho, ux, uy, omega_bgk, omega_trt, s_mrt);
+    double ux, uy;
+    double fx = 0.0;
+    double fy = 0.0;
+
+    if constexpr (UseForces) {
+        // Calcula as forças
+        fx = Custom::compute_custom_fx(x, y, step, forces_struct);
+        fy = Custom::compute_custom_fy(x, y, step, forces_struct);
+
+        // Velocidade com o Shift de Guo
+        ux = (((f[0] - f[2]) + (f[4] - f[5] - f[6] + f[7])) + 0.5 * fx) * inv_rho;
+        uy = (((f[1] - f[3]) + (f[4] + f[5] - f[6] - f[7])) + 0.5 * fy) * inv_rho;
+    } else {
+        // Velocidade normal sem forças
+        ux = ((f[0] - f[2]) + (f[4] - f[5] - f[6] + f[7])) * inv_rho;
+        uy = ((f[1] - f[3]) + (f[4] + f[5] - f[6] - f[7])) * inv_rho;
+    }
+
+    dispatch_collision<ColType, UseForces>(f0, f, rho, ux, uy, fx, fy, omega_bgk, omega_trt, s_mrt);
 
     grid.f0_ptr[idx] = f0;
     grid.f2_ptr[0 * pitch + idx] = f[0];
@@ -190,9 +223,10 @@ static inline void apply_sponges(Grid& grid) noexcept {
     }
 }
 
-template <CollisionType ColType, bool IsInlet>
+template <CollisionType ColType, bool IsInlet, bool UseForces>
 static inline void apply_open_boundaries(Grid& grid, const std::vector<OpenBoundaryNode>& nodes,
-                                         double omega_bgk, double omega_trt, const double s_mrt[9]) noexcept {
+                                         double omega_bgk, double omega_trt, const double s_mrt[9],
+                                         bool periodic_x, bool periodic_y, int step, Custom::CustomForces& forces_struct) noexcept {
     const int nx = grid.nx;
     const int ny = grid.ny;
     const size_t pitch = grid.plane_pitch;
@@ -204,7 +238,6 @@ static inline void apply_open_boundaries(Grid& grid, const std::vector<OpenBound
         const size_t idx = bnd.idx;
         const int x = static_cast<int>(idx % nx);
         const int y = static_cast<int>(idx / nx);
-
         double f0 = grid.f0_ptr[idx];
         double f[8];
 
@@ -212,11 +245,19 @@ static inline void apply_open_boundaries(Grid& grid, const std::vector<OpenBound
         for (int d = 0; d < 8; ++d) {
             int src_x = x - D2Q9::cx[d];
             int src_y = y - D2Q9::cy[d];
+            if (periodic_x) src_x = (src_x + nx) % nx;
+            if (periodic_y) src_y = (src_y + ny) % ny;
             if (src_x >= 0 && src_x < nx && src_y >= 0 && src_y < ny) {
                 f[d] = grid.f1_ptr[d * pitch + (static_cast<size_t>(src_y) * nx + src_x)];
             } else {
-                f[d] = 0.0;
+                f[d] = grid.f1_ptr[d * pitch + idx];
             }
+        }
+
+        double fx = 0.0, fy = 0.0;
+        if constexpr (UseForces) {
+            fx = Custom::compute_custom_fx(x, y, step, forces_struct);
+            fy = Custom::compute_custom_fy(x, y, step, forces_struct);
         }
 
         double rho = 1.0, ux = 0.0, uy = 0.0;
@@ -272,8 +313,13 @@ static inline void apply_open_boundaries(Grid& grid, const std::vector<OpenBound
             }
         }
 
-        // 3. Colidir também o nó de fronteira e gravar em f2_ptr
-        dispatch_collision<ColType>(f0, f, rho, ux, uy, omega_bgk, omega_trt, s_mrt);
+        // Incorpora o shift de Guo na velocidade antes da colisão na fronteira
+        if constexpr (UseForces) {
+            ux += 0.5 * fx / rho;
+            uy += 0.5 * fy / rho;
+        }
+
+        dispatch_collision<ColType, UseForces>(f0, f, rho, ux, uy, fx, fy, omega_bgk, omega_trt, s_mrt);
 
         grid.f0_ptr[idx] = f0;
         for (int d = 0; d < 8; ++d) {
@@ -323,8 +369,8 @@ static inline void apply_wall_links(Grid& grid, double* f_target, bool periodic_
 // ============================================================================
 // 4. RUN_SIMULATION (A Função Principal que Funde Tudo)
 // ============================================================================
-template <CollisionType ColType>
-void run_simulation(Grid& grid, const Simconfig& cfg) {
+template <CollisionType ColType, bool UseForces>
+void run_simulation(Grid& grid, const Simconfig& cfg, Custom::CustomForces& forces_struct) noexcept {
     const int nx = grid.nx;
     const int ny = grid.ny;
     const size_t pitch = grid.plane_pitch;
@@ -347,7 +393,7 @@ void run_simulation(Grid& grid, const Simconfig& cfg) {
                 #pragma omp single
                 {
                     double t0 = omp_get_wtime();
-                    VTKExporter::export_to_vti(grid, step, cfg.output_prefix);
+                    VTKExporter::export_to_vti<UseForces>(grid, forces_struct, step, cfg.output_prefix);
                     grid.vtk_io_time_sec += (omp_get_wtime() - t0);
                 }
             }
@@ -358,7 +404,7 @@ void run_simulation(Grid& grid, const Simconfig& cfg) {
                 #pragma omp for schedule(static) nowait
                 for (int y = 1; y < ny - 1; ++y) {
                     for (int x = 1; x < nx - 1; ++x) {
-                        pull_and_collide_node<ColType, true>(x, y, nx, ny, pitch, grid, omega_bgk, omega_trt, cfg.s_MRT);
+                        pull_and_collide_node<ColType, true, UseForces>(x, y, nx, ny, pitch, grid, omega_bgk, omega_trt, cfg.s_MRT, step, forces_struct);
                     }
                 }
 
@@ -366,23 +412,23 @@ void run_simulation(Grid& grid, const Simconfig& cfg) {
                 if (per_y) {
                     #pragma omp for schedule(static) nowait
                     for (int x = 0; x < nx; ++x) {
-                        pull_and_collide_node<ColType, false>(x, 0,      nx, ny, pitch, grid, omega_bgk, omega_trt, cfg.s_MRT);
-                        pull_and_collide_node<ColType, false>(x, ny - 1, nx, ny, pitch, grid, omega_bgk, omega_trt, cfg.s_MRT);
+                        pull_and_collide_node<ColType, false, UseForces>(x, 0,      nx, ny, pitch, grid, omega_bgk, omega_trt, cfg.s_MRT, step, forces_struct);
+                        pull_and_collide_node<ColType, false, UseForces>(x, ny - 1, nx, ny, pitch, grid, omega_bgk, omega_trt, cfg.s_MRT, step, forces_struct);
                     }
                 }
                 if (per_x) {
                     #pragma omp for schedule(static) nowait
                     for (int y = 1; y < ny - 1; ++y) {
-                        pull_and_collide_node<ColType, false>(0,      y, nx, ny, pitch, grid, omega_bgk, omega_trt, cfg.s_MRT);
-                        pull_and_collide_node<ColType, false>(nx - 1, y, nx, ny, pitch, grid, omega_bgk, omega_trt, cfg.s_MRT);
+                        pull_and_collide_node<ColType, false, UseForces>(0,      y, nx, ny, pitch, grid, omega_bgk, omega_trt, cfg.s_MRT, step, forces_struct);
+                        pull_and_collide_node<ColType, false, UseForces>(nx - 1, y, nx, ny, pitch, grid, omega_bgk, omega_trt, cfg.s_MRT, step, forces_struct);
                     }
                 }
 
             // 3. Aplicar Fronteiras (Esponjas, Inlets, Outlets correm com 'nowait' e sincronizam no fim de wall_links)
             //#pragma omp barrier // Sincroniza tudo antes de aplicar as listas de fronteira
 
-            apply_open_boundaries<ColType, true>(grid, grid.inlet_nodes, omega_bgk, omega_trt, cfg.s_MRT);
-            apply_open_boundaries<ColType, false>(grid, grid.outlet_nodes, omega_bgk, omega_trt, cfg.s_MRT);
+            apply_open_boundaries<ColType, true,  UseForces>(grid, grid.inlet_nodes,  omega_bgk, omega_trt, cfg.s_MRT, per_x, per_y, step, forces_struct);
+            apply_open_boundaries<ColType, false, UseForces>(grid, grid.outlet_nodes, omega_bgk, omega_trt, cfg.s_MRT, per_x, per_y, step, forces_struct);
             
             #pragma omp barrier
 
@@ -401,9 +447,12 @@ void run_simulation(Grid& grid, const Simconfig& cfg) {
 // ============================================================================
 // 5. INSTANCIAÇÃO EXPLÍCITA DOS TEMPLATES (Gera as 3 versões no .o)
 // ============================================================================
-template void run_simulation<CollisionType::BGK>(Grid& grid, const Simconfig& cfg);
-template void run_simulation<CollisionType::TRT>(Grid& grid, const Simconfig& cfg);
-template void run_simulation<CollisionType::MRT>(Grid& grid, const Simconfig& cfg);
+template void run_simulation<CollisionType::BGK, true>(Grid& grid, const Simconfig& cfg, Custom::CustomForces& forces_struct);
+template void run_simulation<CollisionType::BGK, false>(Grid& grid, const Simconfig& cfg, Custom::CustomForces& forces_struct);
+template void run_simulation<CollisionType::TRT, true>(Grid& grid, const Simconfig& cfg, Custom::CustomForces& forces_struct);
+template void run_simulation<CollisionType::TRT, false>(Grid& grid, const Simconfig& cfg, Custom::CustomForces& forces_struct);
+template void run_simulation<CollisionType::MRT, true>(Grid& grid, const Simconfig& cfg, Custom::CustomForces& forces_struct);
+template void run_simulation<CollisionType::MRT, false>(Grid& grid, const Simconfig& cfg, Custom::CustomForces& forces_struct);
 
 } // namespace SolverD2Q9
 

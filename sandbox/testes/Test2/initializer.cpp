@@ -1,12 +1,4 @@
 #include "config_init.hpp"
-#include "D_Q_.hpp"
-#include <fstream>
-#include <stdexcept>
-#include <string>
-#include <cctype>
-#include <algorithm>
-#include <nlohmann/json.hpp>
-#include <omp.h>
 
 using json = nlohmann::json;
 
@@ -117,7 +109,6 @@ void Initializer::load_config_from_json(const std::string& json_filepath, Simcon
     cfg.use_custom_init = sim.value("use_custom_init", false);
     cfg.nx              = sim.at("nx").get<int>();
     cfg.ny              = sim.at("ny").get<int>();
-    cfg.ny              = sim.at("ny").get<int>();
     cfg.nz              = sim.value("nz", 1);
     cfg.grid_size       = static_cast<size_t>(cfg.nx) * cfg.ny * cfg.nz;
     cfg.grid_type       = sim.value("grid_type", 0);
@@ -162,6 +153,16 @@ void Initializer::load_config_from_json(const std::string& json_filepath, Simcon
                     mrt_file >> cfg.s_MRT[i];
                 }
             }
+        }
+    }
+
+    if (j.contains("forces")) {
+        const auto& f = j.at("forces");
+        cfg.use_forces = f.value("use_forces", false);
+        if (cfg.use_forces) {
+            cfg.center_x = f.value("center_x", 0);
+            cfg.center_y = f.value("center_y", 0);
+            cfg.g_mass   = f.value("g_mass", 1.0);
         }
     }
 
@@ -213,22 +214,27 @@ void Initializer::load_config_from_json(const std::string& json_filepath, Simcon
     }
 }
 
-void Initializer::initialize(Grid& grid, const Simconfig& cfg) {
+void Initializer::initialize(Grid& grid, const Simconfig& cfg, Custom::CustomForces& forces_struct) {
 
     utils::check_memory_availability(cfg.max_allowed_bytes);
 
     // FASE 1: Alocar apenas o mapa de flags da geometria
-    grid.allocate_geometry(cfg.nx, cfg.ny);
+    if (cfg.use_forces) {
+        grid.allocate_geometry(cfg.nx, cfg.ny, true);
+    } else {
+        grid.allocate_geometry(cfg.nx, cfg.ny);
+    }
 
     // FASE 2: Estampar geometria e construir listas de fronteira/esponjas
     GeometryBuilder::stamp_geometry(grid, cfg);
     GeometryBuilder::build_boundary_lists(grid, cfg);
+    Custom::initialize_custom_forces(grid, cfg, forces_struct);
 
     // FASE 3: Alocar macro-bloco de 17 planos de populações e inicializar no equilíbrio
     grid.allocate_populations(cfg.max_allowed_bytes);
 
     if (cfg.use_custom_init) {
-        Initializer::apply_custom_initialization(grid, cfg);
+        Custom::apply_custom_initialization(grid, cfg);
         return;
     }
 

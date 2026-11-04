@@ -22,7 +22,8 @@ int main(int argc, char* argv[]) {
         auto t_init_start = std::chrono::high_resolution_clock::now();
 
         Grid grid{};
-        Initializer::initialize(grid, cfg);
+        Custom::CustomForces forces_struct{};
+        Initializer::initialize(grid, cfg, forces_struct);
 
         auto t_init_end = std::chrono::high_resolution_clock::now();
         double init_sec = std::chrono::duration<double>(t_init_end - t_init_start).count();
@@ -43,13 +44,25 @@ int main(int argc, char* argv[]) {
         // Seleciona a versão pré-compilada do template (zero branches lá dentro!)
         switch (cfg.type_collision) {
             case CollisionType::BGK:
-                SolverD2Q9::run_simulation<CollisionType::BGK>(grid, cfg);
+                if (cfg.use_forces) {
+                    SolverD2Q9::run_simulation<CollisionType::BGK, true>(grid, cfg, forces_struct);
+                } else {
+                    SolverD2Q9::run_simulation<CollisionType::BGK, false>(grid, cfg, forces_struct);
+                }
                 break;
             case CollisionType::TRT:
-                SolverD2Q9::run_simulation<CollisionType::TRT>(grid, cfg);
+                if (cfg.use_forces) {
+                    SolverD2Q9::run_simulation<CollisionType::TRT, true>(grid, cfg, forces_struct);
+                } else {
+                    SolverD2Q9::run_simulation<CollisionType::TRT, false>(grid, cfg, forces_struct);
+                }
                 break;
             case CollisionType::MRT:
-                SolverD2Q9::run_simulation<CollisionType::MRT>(grid, cfg);
+                if (cfg.use_forces) {
+                    SolverD2Q9::run_simulation<CollisionType::MRT, true>(grid, cfg, forces_struct);
+                } else {
+                    SolverD2Q9::run_simulation<CollisionType::MRT, false>(grid, cfg, forces_struct);
+                }
                 break;
         }
 

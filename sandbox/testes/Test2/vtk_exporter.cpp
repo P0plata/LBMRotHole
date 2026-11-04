@@ -2,7 +2,8 @@
 
 namespace fs = std::filesystem;
 
-void VTKExporter::export_to_vti(const Grid& grid, const int step, const std::string& prefix) {
+template <bool UseForces>
+void VTKExporter::export_to_vti(const Grid& grid, const Custom::CustomForces& forces_struct, const int step, const std::string& prefix) {
     fs::path p(prefix);
     if (p.has_parent_path()) {
         fs::create_directories(p.parent_path());
@@ -82,6 +83,10 @@ void VTKExporter::export_to_vti(const Grid& grid, const int step, const std::str
                 ux += f * D2Q9::cx[d];
                 uy += f * D2Q9::cy[d];
             }
+            if constexpr (UseForces) {
+                ux += 0.5 * forces_struct.fx_ptr[i];
+                uy += 0.5 * forces_struct.fy_ptr[i];
+            }
             const double inv_r = 1.0 / r;
             chunk_buf[k * 3 + 0] = static_cast<float>(ux * inv_r);
             chunk_buf[k * 3 + 1] = static_cast<float>(uy * inv_r);
@@ -100,10 +105,8 @@ void VTKExporter::export_to_vti(const Grid& grid, const int step, const std::str
 }
 
 
-
-
-
-
+template void VTKExporter::export_to_vti<true>(const Grid&, const Custom::CustomForces&, int, const std::string&);
+template void VTKExporter::export_to_vti<false>(const Grid&, const Custom::CustomForces&, int, const std::string&);
 
 
 

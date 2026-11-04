@@ -1,6 +1,9 @@
 #ifndef D2Q9_HPP
 #define D2Q9_HPP
 
+#include <random>
+#include <stdexcept>
+
 namespace D2Q9 {
     // Ordem das 8 direções móveis (f1_ptr / f2_ptr):
     // 0:E, 1:N, 2:W, 3:S, 4:NE, 5:NW, 6:SW, 7:SE
@@ -23,6 +26,16 @@ namespace D2Q9 {
 
     constexpr inline double compute_feq0(double rho, double u_sq) {
         return w0 * rho * (1.0 - 1.5 * u_sq);
+    }
+
+    constexpr inline double compute_S_guo(int d, double ux, double uy, double Fx, double Fy, double u_dot_F, double force_factor) {
+        double cu = cx[d] * ux + cy[d] * uy;
+        double cF = cx[d] * Fx + cy[d] * Fy;
+        return force_factor * w[d] * (3.0 * (cF - u_dot_F) + 9.0 * cu * cF);
+    }
+
+    constexpr inline double compute_S0_guo(double u_dot_F, double force_factor) {
+        return force_factor * w0 * (-3.0 * u_dot_F);
     }
 
     constexpr inline size_t src_idx(size_t idx, int nx, int d) {
