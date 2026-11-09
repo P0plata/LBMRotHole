@@ -251,18 +251,22 @@ void Initializer::initialize(Grid& grid, const Simconfig& cfg, Custom::CustomFor
     }
 
     #pragma omp parallel for schedule(static)
-    for (size_t i = 0; i < grid.size; ++i) {
-        if (grid.flag_field_ptr[i] == CellType::SOLID) {
-            grid.f0_ptr[i] = D2Q9::compute_feq0(rho, 0.0);
-            for (int d = 0; d < 8; ++d) {
-                grid.f1_ptr[d * pitch + i] = D2Q9::compute_feq(d, rho, 0.0, 0.0, 0.0);
-                grid.f2_ptr[d * pitch + i] = grid.f1_ptr[d * pitch + i];
-            }
-        } else {
-            grid.f0_ptr[i] = feq0;
-            for (int d = 0; d < 8; ++d) {
-                grid.f1_ptr[d * pitch + i] = feq[d];
-                grid.f2_ptr[d * pitch + i] = feq[d];
+    for (int y = 0; y < cfg.ny; ++y) {
+        for (int x = 0; x < cfg.nx; ++x) {
+            const size_t i = static_cast<size_t>(y) * cfg.nx + x;
+            if (grid.flag_field_ptr[i] == CellType::SOLID) {
+                grid.f0_ptr[i] = D2Q9::compute_feq0(rho, 0.0);
+                for (int d = 0; d < 8; ++d) {
+                    const double val = D2Q9::compute_feq(d, rho, 0.0, 0.0, 0.0);
+                    grid.f1_ptr[d * pitch + i] = val;
+                    grid.f2_ptr[d * pitch + i] = val;
+                }
+            } else {
+                grid.f0_ptr[i] = feq0;
+                for (int d = 0; d < 8; ++d) {
+                    grid.f1_ptr[d * pitch + i] = feq[d];
+                    grid.f2_ptr[d * pitch + i] = feq[d];
+                }
             }
         }
     }

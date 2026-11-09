@@ -26,14 +26,14 @@ add_executable(run_test
 target_link_libraries(run_test PRIVATE OpenMP::OpenMP_CXX nlohmann_json::nlohmann_json)
 
 
-# Se não especificares nada no comando cmake, assume Release (-O3 -march=native) por defeito
+# Se não especificares nada no comando cmake, assume Release (-O3 -march=native -fopenmp-simd) por defeito
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)
 endif()
 
 target_compile_options(run_test PRIVATE
     -Wall -Wextra
-    $<$<CONFIG:Release>:-O3 -march=native -DNDEBUG>
+    $<$<CONFIG:Release>:-O3 -march=native -fopenmp-simd -DNDEBUG -g1 -fno-omit-frame-pointer>
     $<$<CONFIG:Debug>:-O0 -g -fsanitize=address,undefined>
 )
 target_link_options(run_test PRIVATE

@@ -3,15 +3,15 @@
 namespace SolverD2Q9 {
 
 // ============================================================================
-// 1. AS 3 FUNÇÕES DE COLISÃO SEPARADAS (static inline -> Zero overhead)
+// 1. AS 3 FUNÇÕES DE COLISÃO SEPARADAS (static  -> Zero overhead)
 // ============================================================================
 template <bool UseForces>
-static inline void collide_bgk(double& f0, double f[8], double rho, double ux, double uy, double fx, double fy, double omega) noexcept {
+LBM_INLINE  void collide_bgk(double& f0, double f[8], double rho, double ux, double uy, double fx, double fy, double omega) noexcept {
     const double u_sq = ux * ux + uy * uy;
 
     f0   -= omega * (f0 - D2Q9::compute_feq0(rho, u_sq));
     f[0] -= omega * (f[0] - D2Q9::compute_feq(0, rho, ux, uy, u_sq));
-    f[1] -= omega * (f[1] - D2Q9::compute_feq(1, rho, ux, uy, u_sq));
+    f[1] -= omega * (f[1] - D2Q9::compute_feq(1, rho, ux, uy, u_sq));   
     f[2] -= omega * (f[2] - D2Q9::compute_feq(2, rho, ux, uy, u_sq));
     f[3] -= omega * (f[3] - D2Q9::compute_feq(3, rho, ux, uy, u_sq));
     f[4] -= omega * (f[4] - D2Q9::compute_feq(4, rho, ux, uy, u_sq));
@@ -36,33 +36,96 @@ static inline void collide_bgk(double& f0, double f[8], double rho, double ux, d
 }
 
 template <bool UseForces>
-static inline void collide_trt(double& f0, double f[8], double rho, double ux, double uy,
+LBM_INLINE void collide_trt(double& f0, double f[8], double rho, double ux, double uy,
                                double fx, double fy, double omega_p, double omega_m) noexcept {
     const double u_sq = ux * ux + uy * uy;
+    
     f0 -= omega_p * (f0 - D2Q9::compute_feq0(rho, u_sq));
 
-    constexpr int pairs[4][2] = {{0, 2}, {1, 3}, {4, 6}, {5, 7}};
-    for (int p = 0; p < 4; ++p) {
-        const int d     = pairs[p][0];
-        const int d_opp = pairs[p][1];
+    // constexpr int pairs[4][2] = {{0, 2}, {1, 3}, {4, 6}, {5, 7}};
+    // for (int p = 0; p < 4; ++p) {
+    //     const int d     = pairs[p][0];
+    //     const int d_opp = pairs[p][1];
 
-        const double feq_d   = D2Q9::compute_feq(d, rho, ux, uy, u_sq);
-        const double feq_opp = D2Q9::compute_feq(d_opp, rho, ux, uy, u_sq);
+    //     const double feq_d   = D2Q9::compute_feq(d, rho, ux, uy, u_sq);
+    //     const double feq_opp = D2Q9::compute_feq(d_opp, rho, ux, uy, u_sq);
 
-        const double f_plus    = 0.5 * (f[d] + f[d_opp]);
-        const double f_minus   = 0.5 * (f[d] - f[d_opp]);
-        const double feq_plus  = 0.5 * (feq_d + feq_opp);
-        const double feq_minus = 0.5 * (feq_d - feq_opp);
+    //     const double f_plus    = 0.5 * (f[d] + f[d_opp]);
+    //     const double f_minus   = 0.5 * (f[d] - f[d_opp]);
+    //     const double feq_plus  = 0.5 * (feq_d + feq_opp);
+    //     const double feq_minus = 0.5 * (feq_d - feq_opp);
 
-        const double corr_p = omega_p * (f_plus - feq_plus);
-        const double corr_m = omega_m * (f_minus - feq_minus);
+    //     const double corr_p = omega_p * (f_plus - feq_plus);
+    //     const double corr_m = omega_m * (f_minus - feq_minus);
 
-        f[d]     -= (corr_p + corr_m);
-        f[d_opp] -= (corr_p - corr_m);
+    //     f[d]     -= (corr_p + corr_m);
+    //     f[d_opp] -= (corr_p - corr_m);
+    // }
+
+    // Termos pares (0,2) (1,3) (4,6) (5,7)
+
+    const double f_plus_02 = D2Q9::compute_f_plus_trt(0, f);
+    const double f_plus_13 = D2Q9::compute_f_plus_trt(1, f);
+    const double f_plus_46 = D2Q9::compute_f_plus_trt(4, f);
+    const double f_plus_57 = D2Q9::compute_f_plus_trt(5, f);
+
+    const double f_minus_02 = D2Q9::compute_f_minus_trt(0, f);
+    const double f_minus_13 = D2Q9::compute_f_minus_trt(1, f);
+    const double f_minus_46 = D2Q9::compute_f_minus_trt(4, f);
+    const double f_minus_57 = D2Q9::compute_f_minus_trt(5, f);
+
+    const double feq_plus_02 = D2Q9::compute_feq_plus_trt(0, rho, ux, uy, u_sq);
+    const double feq_plus_13 = D2Q9::compute_feq_plus_trt(1, rho, ux, uy, u_sq);
+    const double feq_plus_46 = D2Q9::compute_feq_plus_trt(4, rho, ux, uy, u_sq);
+    const double feq_plus_57 = D2Q9::compute_feq_plus_trt(5, rho, ux, uy, u_sq);
+
+    const double feq_minus_02 = D2Q9::compute_feq_minus_trt(0, rho, ux, uy, u_sq);
+    const double feq_minus_13 = D2Q9::compute_feq_minus_trt(1, rho, ux, uy, u_sq);
+    const double feq_minus_46 = D2Q9::compute_feq_minus_trt(4, rho, ux, uy, u_sq);
+    const double feq_minus_57 = D2Q9::compute_feq_minus_trt(5, rho, ux, uy, u_sq);
+
+    const double corr_plus_02 = omega_p * (f_plus_02 - feq_plus_02);
+    const double corr_plus_13 = omega_p * (f_plus_13 - feq_plus_13);
+    const double corr_plus_46 = omega_p * (f_plus_46 - feq_plus_46);
+    const double corr_plus_57 = omega_p * (f_plus_57 - feq_plus_57);
+
+    const double corr_minus_02 = omega_m * (f_minus_02 - feq_minus_02);
+    const double corr_minus_13 = omega_m * (f_minus_13 - feq_minus_13);
+    const double corr_minus_46 = omega_m * (f_minus_46 - feq_minus_46);
+    const double corr_minus_57 = omega_m * (f_minus_57 - feq_minus_57);
+
+    f[0] -= corr_plus_02 + corr_minus_02;
+    f[1] -= corr_plus_13 + corr_minus_13;
+    f[2] -= corr_plus_02 - corr_minus_02;
+    f[3] -= corr_plus_13 - corr_minus_13;
+    f[4] -= corr_plus_46 + corr_minus_46;
+    f[5] -= corr_plus_57 + corr_minus_57;
+    f[6] -= corr_plus_46 - corr_minus_46;
+    f[7] -= corr_plus_57 - corr_minus_57;
+
+
+    if constexpr (UseForces) {
+        const double force_factor_p = (1.0 - 0.5 * omega_p);
+        const double force_factor_m = (1.0 - 0.5 * omega_m);
+        const double u_dot_F = ux * fx + uy * fy;
+
+        f0   += D2Q9::compute_S0_guo(u_dot_F, force_factor);
+        
+        f[0] += D2Q9::compute_S_guo(0, ux, uy, fx, fy, u_dot_F, force_factor);
+        f[1] += D2Q9::compute_S_guo(1, ux, uy, fx, fy, u_dot_F, force_factor);
+        f[2] += D2Q9::compute_S_guo(2, ux, uy, fx, fy, u_dot_F, force_factor);
+        f[3] += D2Q9::compute_S_guo(3, ux, uy, fx, fy, u_dot_F, force_factor);
+        f[4] += D2Q9::compute_S_guo(4, ux, uy, fx, fy, u_dot_F, force_factor);
+        f[5] += D2Q9::compute_S_guo(5, ux, uy, fx, fy, u_dot_F, force_factor);
+        f[6] += D2Q9::compute_S_guo(6, ux, uy, fx, fy, u_dot_F, force_factor);
+        f[7] += D2Q9::compute_S_guo(7, ux, uy, fx, fy, u_dot_F, force_factor);
     }
+
+
 }
 
-static inline void collide_mrt(double& f0, double f[8], double rho, double ux, double uy,
+template <bool UseForces>
+LBM_INLINE  void collide_mrt(double& f0, double f[8], double rho, double ux, double uy,
                                const double s_mrt[9]) noexcept {
     const double u_sq = ux * ux + uy * uy;
     const double f_card = f[0] + f[1] + f[2] + f[3];
@@ -104,7 +167,7 @@ static inline void collide_mrt(double& f0, double f[8], double rho, double ux, d
 
 // Disparo em tempo de compilação para a função de colisão correta
 template <CollisionType ColType, bool UseForces>
-static inline void dispatch_collision(double& f0, double f[8], double rho, double ux, double uy,
+LBM_INLINE  void dispatch_collision(double& f0, double f[8], double rho, double ux, double uy,
                                       double fx, double fy, double omega_bgk, double omega_trt, const double s_mrt[9]) noexcept {
                                         
     if constexpr (ColType == CollisionType::BGK) {
@@ -112,58 +175,144 @@ static inline void dispatch_collision(double& f0, double f[8], double rho, doubl
     } else if constexpr (ColType == CollisionType::TRT) {
         collide_trt<UseForces>(f0, f, rho, ux, uy, fx, fy, omega_bgk, omega_trt);
     } else if constexpr (ColType == CollisionType::MRT) {
-        collide_mrt(f0, f, rho, ux, uy, s_mrt);
+        collide_mrt<UseForces>(f0, f, rho, ux, uy, s_mrt);
     }
 }
 
 // ============================================================================
 // 2. PULL + COLLIDE POR NÓ DE FLUIDO
 // ============================================================================
-template <CollisionType ColType, bool IsInterior, bool UseForces>
-static inline void pull_and_collide_node(int x, int y, int nx, int ny, size_t pitch, Grid& grid,
-                                         double omega_bgk, double omega_trt, const double s_mrt[9], int step,  Custom::CustomForces& forces_struct) noexcept {
-    const size_t idx = static_cast<size_t>(y) * nx + x;
-    const CellType cell = grid.flag_field_ptr[idx];
-    if (cell != CellType::FLUID && cell != CellType::SPONGE) return;
 
-    //double feq;
-    double f0 = grid.f0_ptr[idx];
+// template <CollisionType ColType, bool IsInterior, bool UseForces, bool UseNTStore = false>
+// static  void pull_and_collide_node(int x, int y, int nx, int ny, size_t pitch, Grid& grid,
+//                                          double omega_bgk, double omega_trt, const double s_mrt[9], int step,  Custom::CustomForces& forces_struct) noexcept {
+//     const size_t idx = static_cast<size_t>(y) * nx + x;
+    
+    
+//     if constexpr (!IsInterior) {
+//         const CellType cell = grid.flag_field_ptr[idx];
+//         if (cell != CellType::FLUID && cell != CellType::SPONGE) return;
+//     }
+
+//     double* __restrict__ f0_p       = grid.f0_ptr;
+//     const double* __restrict__ f1_p = grid.f1_ptr;
+//     double* __restrict__ f2_p       = grid.f2_ptr;
+
+//     //double feq;
+//     double f0 = f0_p[idx];
+//     double f[8];
+
+//     /*for (int d = 0; d < 8; ++d) {
+//         size_t src_idx;
+//         if constexpr (IsInterior) {
+//             src_idx = idx - (D2Q9::cx[d] + D2Q9::cy[d] * nx);
+//         } else {
+//             int src_x = (x - D2Q9::cx[d] + nx) % nx;
+//             int src_y = (y - D2Q9::cy[d] + ny) % ny;
+//             src_idx = static_cast<size_t>(src_y) * nx + src_x;
+//         }
+//         f[d] = grid.f1_ptr[d * pitch + src_idx];
+//     }*/
+
+//     if constexpr (IsInterior) {
+        
+//         f[0] = f1_p[0 * pitch + D2Q9::src_idx(idx,nx,0)];
+//         f[1] = f1_p[1 * pitch + D2Q9::src_idx(idx,nx,1)];
+//         f[2] = f1_p[2 * pitch + D2Q9::src_idx(idx,nx,2)];
+//         f[3] = f1_p[3 * pitch + D2Q9::src_idx(idx,nx,3)];
+//         f[4] = f1_p[4 * pitch + D2Q9::src_idx(idx,nx,4)];
+//         f[5] = f1_p[5 * pitch + D2Q9::src_idx(idx,nx,5)];
+//         f[6] = f1_p[6 * pitch + D2Q9::src_idx(idx,nx,6)];
+//         f[7] = f1_p[7 * pitch + D2Q9::src_idx(idx,nx,7)];            
+
+//     } else {
+
+//         f[0] = f1_p[0 * pitch + D2Q9::src_idx_p(x,y,nx,ny,0)];
+//         f[1] = f1_p[1 * pitch + D2Q9::src_idx_p(x,y,nx,ny,1)];
+//         f[2] = f1_p[2 * pitch + D2Q9::src_idx_p(x,y,nx,ny,2)];
+//         f[3] = f1_p[3 * pitch + D2Q9::src_idx_p(x,y,nx,ny,3)];
+//         f[4] = f1_p[4 * pitch + D2Q9::src_idx_p(x,y,nx,ny,4)];
+//         f[5] = f1_p[5 * pitch + D2Q9::src_idx_p(x,y,nx,ny,5)];
+//         f[6] = f1_p[6 * pitch + D2Q9::src_idx_p(x,y,nx,ny,6)];
+//         f[7] = f1_p[7 * pitch + D2Q9::src_idx_p(x,y,nx,ny,7)];    
+    
+//     }
+
+//     const double rho = f0 + f[0] + f[1] + f[2] + f[3] + f[4] + f[5] + f[6] + f[7];
+//     const double inv_rho = 1.0 / rho;
+
+//     double ux, uy;
+//     double fx = 0.0;
+//     double fy = 0.0;
+
+//     if constexpr (UseForces) {
+//         // Calcula as forças
+//         fx = Custom::compute_custom_fx(x, y, step, forces_struct);
+//         fy = Custom::compute_custom_fy(x, y, step, forces_struct);
+
+//         // Velocidade com o Shift de Guo
+//         ux = (((f[0] - f[2]) + (f[4] - f[5] - f[6] + f[7])) + 0.5 * fx) * inv_rho;
+//         uy = (((f[1] - f[3]) + (f[4] + f[5] - f[6] - f[7])) + 0.5 * fy) * inv_rho;
+//     } else {
+//         // Velocidade normal sem forças
+//         ux = ((f[0] - f[2]) + (f[4] - f[5] - f[6] + f[7])) * inv_rho;
+//         uy = ((f[1] - f[3]) + (f[4] + f[5] - f[6] - f[7])) * inv_rho;
+//     }
+
+//     dispatch_collision<ColType, UseForces>(f0, f, rho, ux, uy, fx, fy, omega_bgk, omega_trt, s_mrt);
+
+//     // Avisar o compilador que os ponteiros base estão alinhados a 64 bytes (Cache Line / AVX-512)
+//     double* __restrict__ f0_aligned = static_cast<double*>(__builtin_assume_aligned(f0_p, 64));
+//     double* __restrict__ f2_aligned = static_cast<double*>(__builtin_assume_aligned(f2_p, 64));
+
+//     D2Q9::store_population<UseNTStore>(&f0_aligned[idx], f0);
+//     D2Q9::store_population<UseNTStore>(&f2_aligned[0 * pitch + idx], f[0]);
+//     D2Q9::store_population<UseNTStore>(&f2_aligned[1 * pitch + idx], f[1]);
+//     D2Q9::store_population<UseNTStore>(&f2_aligned[2 * pitch + idx], f[2]);
+//     D2Q9::store_population<UseNTStore>(&f2_aligned[3 * pitch + idx], f[3]);
+//     D2Q9::store_population<UseNTStore>(&f2_aligned[4 * pitch + idx], f[4]);
+//     D2Q9::store_population<UseNTStore>(&f2_aligned[5 * pitch + idx], f[5]);
+//     D2Q9::store_population<UseNTStore>(&f2_aligned[6 * pitch + idx], f[6]);
+//     D2Q9::store_population<UseNTStore>(&f2_aligned[7 * pitch + idx], f[7]);
+// }
+
+
+template <CollisionType ColType, bool IsInterior, bool UseForces>
+LBM_INLINE void pull_and_collide_node(int x, int y, int nx, int ny, size_t pitch, Grid& grid,
+                                      double omega_bgk, double omega_trt, const double s_mrt[9],
+                                      int step, Custom::CustomForces& forces_struct) noexcept {
+    const size_t idx = static_cast<size_t>(y) * nx + x;
+
+    if constexpr (!IsInterior) {
+        const CellType cell = grid.flag_field_ptr[idx];
+        if (cell != CellType::FLUID && cell != CellType::SPONGE) return;
+    }
+
+    double* __restrict__ f0_p       = grid.f0_ptr;
+    const double* __restrict__ f1_p = grid.f1_ptr;
+    double* __restrict__ f2_p       = grid.f2_ptr;
+
+    double f0 = f0_p[idx];
     double f[8];
 
-    /*for (int d = 0; d < 8; ++d) {
-        size_t src_idx;
-        if constexpr (IsInterior) {
-            src_idx = idx - (D2Q9::cx[d] + D2Q9::cy[d] * nx);
-        } else {
-            int src_x = (x - D2Q9::cx[d] + nx) % nx;
-            int src_y = (y - D2Q9::cy[d] + ny) % ny;
-            src_idx = static_cast<size_t>(src_y) * nx + src_x;
-        }
-        f[d] = grid.f1_ptr[d * pitch + src_idx];
-    }*/
-
     if constexpr (IsInterior) {
-        
-        f[0] = grid.f1_ptr[0 * pitch + D2Q9::src_idx(idx,nx,0)];
-        f[1] = grid.f1_ptr[1 * pitch + D2Q9::src_idx(idx,nx,1)];
-        f[2] = grid.f1_ptr[2 * pitch + D2Q9::src_idx(idx,nx,2)];
-        f[3] = grid.f1_ptr[3 * pitch + D2Q9::src_idx(idx,nx,3)];
-        f[4] = grid.f1_ptr[4 * pitch + D2Q9::src_idx(idx,nx,4)];
-        f[5] = grid.f1_ptr[5 * pitch + D2Q9::src_idx(idx,nx,5)];
-        f[6] = grid.f1_ptr[6 * pitch + D2Q9::src_idx(idx,nx,6)];
-        f[7] = grid.f1_ptr[7 * pitch + D2Q9::src_idx(idx,nx,7)];            
-
+        f[0] = f1_p[0 * pitch + D2Q9::src_idx(idx, nx, 0)];
+        f[1] = f1_p[1 * pitch + D2Q9::src_idx(idx, nx, 1)];
+        f[2] = f1_p[2 * pitch + D2Q9::src_idx(idx, nx, 2)];
+        f[3] = f1_p[3 * pitch + D2Q9::src_idx(idx, nx, 3)];
+        f[4] = f1_p[4 * pitch + D2Q9::src_idx(idx, nx, 4)];
+        f[5] = f1_p[5 * pitch + D2Q9::src_idx(idx, nx, 5)];
+        f[6] = f1_p[6 * pitch + D2Q9::src_idx(idx, nx, 6)];
+        f[7] = f1_p[7 * pitch + D2Q9::src_idx(idx, nx, 7)];
     } else {
-
-        f[0] = grid.f1_ptr[0 * pitch + D2Q9::src_idx_p(x,y,nx,ny,0)];
-        f[1] = grid.f1_ptr[1 * pitch + D2Q9::src_idx_p(x,y,nx,ny,1)];
-        f[2] = grid.f1_ptr[2 * pitch + D2Q9::src_idx_p(x,y,nx,ny,2)];
-        f[3] = grid.f1_ptr[3 * pitch + D2Q9::src_idx_p(x,y,nx,ny,3)];
-        f[4] = grid.f1_ptr[4 * pitch + D2Q9::src_idx_p(x,y,nx,ny,4)];
-        f[5] = grid.f1_ptr[5 * pitch + D2Q9::src_idx_p(x,y,nx,ny,5)];
-        f[6] = grid.f1_ptr[6 * pitch + D2Q9::src_idx_p(x,y,nx,ny,6)];
-        f[7] = grid.f1_ptr[7 * pitch + D2Q9::src_idx_p(x,y,nx,ny,7)];    
-    
+        f[0] = f1_p[0 * pitch + D2Q9::src_idx_p(x, y, nx, ny, 0)];
+        f[1] = f1_p[1 * pitch + D2Q9::src_idx_p(x, y, nx, ny, 1)];
+        f[2] = f1_p[2 * pitch + D2Q9::src_idx_p(x, y, nx, ny, 2)];
+        f[3] = f1_p[3 * pitch + D2Q9::src_idx_p(x, y, nx, ny, 3)];
+        f[4] = f1_p[4 * pitch + D2Q9::src_idx_p(x, y, nx, ny, 4)];
+        f[5] = f1_p[5 * pitch + D2Q9::src_idx_p(x, y, nx, ny, 5)];
+        f[6] = f1_p[6 * pitch + D2Q9::src_idx_p(x, y, nx, ny, 6)];
+        f[7] = f1_p[7 * pitch + D2Q9::src_idx_p(x, y, nx, ny, 7)];
     }
 
     const double rho = f0 + f[0] + f[1] + f[2] + f[3] + f[4] + f[5] + f[6] + f[7];
@@ -174,38 +323,38 @@ static inline void pull_and_collide_node(int x, int y, int nx, int ny, size_t pi
     double fy = 0.0;
 
     if constexpr (UseForces) {
-        // Calcula as forças
         fx = Custom::compute_custom_fx(x, y, step, forces_struct);
         fy = Custom::compute_custom_fy(x, y, step, forces_struct);
-
-        // Velocidade com o Shift de Guo
         ux = (((f[0] - f[2]) + (f[4] - f[5] - f[6] + f[7])) + 0.5 * fx) * inv_rho;
         uy = (((f[1] - f[3]) + (f[4] + f[5] - f[6] - f[7])) + 0.5 * fy) * inv_rho;
     } else {
-        // Velocidade normal sem forças
         ux = ((f[0] - f[2]) + (f[4] - f[5] - f[6] + f[7])) * inv_rho;
         uy = ((f[1] - f[3]) + (f[4] + f[5] - f[6] - f[7])) * inv_rho;
     }
 
     dispatch_collision<ColType, UseForces>(f0, f, rho, ux, uy, fx, fy, omega_bgk, omega_trt, s_mrt);
 
-    grid.f0_ptr[idx] = f0;
-    grid.f2_ptr[0 * pitch + idx] = f[0];
-    grid.f2_ptr[1 * pitch + idx] = f[1];
-    grid.f2_ptr[2 * pitch + idx] = f[2];
-    grid.f2_ptr[3 * pitch + idx] = f[3];
-    grid.f2_ptr[4 * pitch + idx] = f[4];
-    grid.f2_ptr[5 * pitch + idx] = f[5];
-    grid.f2_ptr[6 * pitch + idx] = f[6];
-    grid.f2_ptr[7 * pitch + idx] = f[7];
+    f0_p[idx] = f0;
+    f2_p[0 * pitch + idx] = f[0];
+    f2_p[1 * pitch + idx] = f[1];
+    f2_p[2 * pitch + idx] = f[2];
+    f2_p[3 * pitch + idx] = f[3];
+    f2_p[4 * pitch + idx] = f[4];
+    f2_p[5 * pitch + idx] = f[5];
+    f2_p[6 * pitch + idx] = f[6];
+    f2_p[7 * pitch + idx] = f[7];
 }
+
 
 // ============================================================================
 // 3. FRONTEIRAS (Esponja, Zou-He Inlet/Outlet e Bouzidi/Bounce-Back)
 // ============================================================================
-static inline void apply_sponges(Grid& grid) noexcept {
+static  void apply_sponges(Grid& grid) noexcept {
     const size_t pitch = grid.plane_pitch;
     const size_t n_sponges = grid.sponge_nodes.size();
+
+    double* __restrict__ f0_p       = grid.f0_ptr;
+    double* __restrict__ f2_p       = grid.f2_ptr;
 
     #pragma omp for schedule(static) nowait
     for (size_t i = 0; i < n_sponges; ++i) {
@@ -215,16 +364,16 @@ static inline void apply_sponges(Grid& grid) noexcept {
         const double oms = 1.0 - sigma;
         const double u_sq = static_cast<double>(sp.vx_ref) * sp.vx_ref + static_cast<double>(sp.vy_ref) * sp.vy_ref;
 
-        grid.f0_ptr[idx] = oms * grid.f0_ptr[idx] + sigma * D2Q9::compute_feq0(sp.rho_ref, u_sq);
+        f0_p[idx] = oms * f0_p[idx] + sigma * D2Q9::compute_feq0(sp.rho_ref, u_sq);
         for (int d = 0; d < 8; ++d) {
             double feq_ref = D2Q9::compute_feq(d, sp.rho_ref, sp.vx_ref, sp.vy_ref, u_sq);
-            grid.f2_ptr[d * pitch + idx] = oms * grid.f2_ptr[d * pitch + idx] + sigma * feq_ref;
+            f2_p[d * pitch + idx] = oms * f2_p[d * pitch + idx] + sigma * feq_ref;
         }
     }
 }
 
 template <CollisionType ColType, bool IsInlet, bool UseForces>
-static inline void apply_open_boundaries(Grid& grid, const std::vector<OpenBoundaryNode>& nodes,
+static  void apply_open_boundaries(Grid& grid, const std::vector<OpenBoundaryNode>& nodes,
                                          double omega_bgk, double omega_trt, const double s_mrt[9],
                                          bool periodic_x, bool periodic_y, int step, Custom::CustomForces& forces_struct) noexcept {
     const int nx = grid.nx;
@@ -328,7 +477,7 @@ static inline void apply_open_boundaries(Grid& grid, const std::vector<OpenBound
     }
 }
 
-static inline void apply_wall_links(Grid& grid, double* f_target, bool periodic_x, bool periodic_y) noexcept {
+static  void apply_wall_links(Grid& grid, double* f_target, bool periodic_x, bool periodic_y) noexcept {
     const int nx = grid.nx;
     const int ny = grid.ny;
     const size_t pitch = grid.plane_pitch;
@@ -401,28 +550,30 @@ void run_simulation(Grid& grid, const Simconfig& cfg, Custom::CustomForces& forc
             if (step == cfg.max_steps) break;
 
             // 2. Fused Pull + Collide em todo o domínio fluido
+
+            #pragma omp for schedule(static) nowait
+            for (int y = 1; y < ny - 1; ++y) {
+                #pragma omp simd
+                for (int x = 1; x < nx - 1; ++x) {
+                    pull_and_collide_node<ColType, true, UseForces>(x, y, nx, ny, pitch, grid, omega_bgk, omega_trt, cfg.s_MRT, step, forces_struct);
+                }
+            }
+
+            // 2. BORDAS PERIÓDICAS (Só corre se a fronteira for realmente PERIODIC)
+            if (per_y) {
+                #pragma omp for schedule(static) nowait
+                for (int x = 0; x < nx; ++x) {
+                    pull_and_collide_node<ColType, false, UseForces>(x, 0,      nx, ny, pitch, grid, omega_bgk, omega_trt, cfg.s_MRT, step, forces_struct);
+                    pull_and_collide_node<ColType, false, UseForces>(x, ny - 1, nx, ny, pitch, grid, omega_bgk, omega_trt, cfg.s_MRT, step, forces_struct);
+                }
+            }
+            if (per_x) {
                 #pragma omp for schedule(static) nowait
                 for (int y = 1; y < ny - 1; ++y) {
-                    for (int x = 1; x < nx - 1; ++x) {
-                        pull_and_collide_node<ColType, true, UseForces>(x, y, nx, ny, pitch, grid, omega_bgk, omega_trt, cfg.s_MRT, step, forces_struct);
-                    }
+                    pull_and_collide_node<ColType, false, UseForces>(0,      y, nx, ny, pitch, grid, omega_bgk, omega_trt, cfg.s_MRT, step, forces_struct);
+                    pull_and_collide_node<ColType, false, UseForces>(nx - 1, y, nx, ny, pitch, grid, omega_bgk, omega_trt, cfg.s_MRT, step, forces_struct);
                 }
-
-                // 2. BORDAS PERIÓDICAS (Só corre se a fronteira for realmente PERIODIC)
-                if (per_y) {
-                    #pragma omp for schedule(static) nowait
-                    for (int x = 0; x < nx; ++x) {
-                        pull_and_collide_node<ColType, false, UseForces>(x, 0,      nx, ny, pitch, grid, omega_bgk, omega_trt, cfg.s_MRT, step, forces_struct);
-                        pull_and_collide_node<ColType, false, UseForces>(x, ny - 1, nx, ny, pitch, grid, omega_bgk, omega_trt, cfg.s_MRT, step, forces_struct);
-                    }
-                }
-                if (per_x) {
-                    #pragma omp for schedule(static) nowait
-                    for (int y = 1; y < ny - 1; ++y) {
-                        pull_and_collide_node<ColType, false, UseForces>(0,      y, nx, ny, pitch, grid, omega_bgk, omega_trt, cfg.s_MRT, step, forces_struct);
-                        pull_and_collide_node<ColType, false, UseForces>(nx - 1, y, nx, ny, pitch, grid, omega_bgk, omega_trt, cfg.s_MRT, step, forces_struct);
-                    }
-                }
+            }
 
             // 3. Aplicar Fronteiras (Esponjas, Inlets, Outlets correm com 'nowait' e sincronizam no fim de wall_links)
             //#pragma omp barrier // Sincroniza tudo antes de aplicar as listas de fronteira
@@ -447,12 +598,18 @@ void run_simulation(Grid& grid, const Simconfig& cfg, Custom::CustomForces& forc
 // ============================================================================
 // 5. INSTANCIAÇÃO EXPLÍCITA DOS TEMPLATES (Gera as 3 versões no .o)
 // ============================================================================
-template void run_simulation<CollisionType::BGK, true>(Grid& grid, const Simconfig& cfg, Custom::CustomForces& forces_struct);
-template void run_simulation<CollisionType::BGK, false>(Grid& grid, const Simconfig& cfg, Custom::CustomForces& forces_struct);
-template void run_simulation<CollisionType::TRT, true>(Grid& grid, const Simconfig& cfg, Custom::CustomForces& forces_struct);
-template void run_simulation<CollisionType::TRT, false>(Grid& grid, const Simconfig& cfg, Custom::CustomForces& forces_struct);
-template void run_simulation<CollisionType::MRT, true>(Grid& grid, const Simconfig& cfg, Custom::CustomForces& forces_struct);
-template void run_simulation<CollisionType::MRT, false>(Grid& grid, const Simconfig& cfg, Custom::CustomForces& forces_struct);
+// BGK (4 combinações)
+template void run_simulation<CollisionType::BGK, true>(Grid&, const Simconfig&, Custom::CustomForces&);
+template void run_simulation<CollisionType::BGK, false>(Grid&, const Simconfig&, Custom::CustomForces&);
+
+// TRT (4 combinações)
+template void run_simulation<CollisionType::TRT, true>(Grid&, const Simconfig&, Custom::CustomForces&);
+template void run_simulation<CollisionType::TRT, false>(Grid&, const Simconfig&, Custom::CustomForces&);
+
+// MRT (4 combinações)
+template void run_simulation<CollisionType::MRT, true>(Grid&, const Simconfig&, Custom::CustomForces&);
+template void run_simulation<CollisionType::MRT, false>(Grid&, const Simconfig&, Custom::CustomForces&);
+
 
 } // namespace SolverD2Q9
 

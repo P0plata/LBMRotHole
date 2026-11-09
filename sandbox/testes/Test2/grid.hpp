@@ -10,7 +10,10 @@
 #include <stdexcept>
 #include "D_Q_.hpp"
 #include <cstring>
-
+#include <omp.h>
+#ifdef __linux__
+#include <sys/mman.h>
+#endif
 
 
 constexpr size_t ALIGNMENT = 64; // Cache line / AVX-512
@@ -60,16 +63,16 @@ struct Grid {
 
     // --- MACRO-BLOCO DE POPULAÇÕES (17 * plane_pitch) ---
     double *f_raw_ptr{nullptr};
-    double *f0_ptr{nullptr}; // Direção 0 (repouso)
-    double *f1_ptr{nullptr}; // 8 direções móveis - Leitura (Pull)
-    double *f2_ptr{nullptr}; // 8 direções móveis - Escrita
+    double* __restrict__  f0_ptr{nullptr}; // Direção 0 (repouso)
+    double* __restrict__  f1_ptr{nullptr}; // 8 direções móveis - Leitura (Pull)
+    double* __restrict__ f2_ptr{nullptr}; // 8 direções móveis - Escrita
 
     // --- MAPA DENSO DA GEOMETRIA (1 byte/célula) ---
     CellType *flag_field_ptr{nullptr};
 
     double *fxy_raw_ptr{nullptr}; // Bloco de forças externas (opcional)
-    double *fx_ptr{nullptr}; // Forças externas X (opcional)
-    double *fy_ptr{nullptr}; // Forças externas Y (opcional)
+    double* __restrict__ fx_ptr{nullptr}; // Forças externas X (opcional)
+    double* __restrict__ fy_ptr{nullptr}; // Forças externas Y (opcional)
 
     // --- LISTAS ESPARSAS ESPECIALIZADAS ---
     std::vector<WallLink> wall_links;            // Paredes retas (q=0.5) ou curvas (Bouzidi)
@@ -94,45 +97,52 @@ struct Grid {
     Grid& operator=(const Grid&) = delete;
 
     void allocate_geometry(int x, int y, bool forces = false) {
-        
-        
         if (x <= 0 || y <= 0) {
             throw std::invalid_argument("As dimensões da grelha têm de ser estritamente positivas (> 0).");
         }
 
-        // Se já houver algo alocado, limpa primeiro
         deallocate();
 
         nx = x;
         ny = y;
         size = static_cast<size_t>(nx) * ny;
-        // Arredonda para o múltiplo de 8 doubles superior (64 bytes)
         plane_pitch = ((size + 7) / 8) * 8;
+        if ((plane_pitch % 512) == 0) plane_pitch += 8; // Evita 4K Aliasing entre os 17 planos
         
-        // Mapa de flags (alinhamento standard de 64 bytes)
         size_t flag_bytes = ((size + (ALIGNMENT - 1)) / ALIGNMENT) * ALIGNMENT;
         flag_field_ptr = static_cast<CellType*>(std::aligned_alloc(ALIGNMENT, flag_bytes));
-
         if (!flag_field_ptr) {
             deallocate();
             throw std::bad_alloc();
         }
-
-        std::memset(flag_field_ptr, 0, flag_bytes);
+#ifdef __linux__
+        madvise(flag_field_ptr, flag_bytes, MADV_HUGEPAGE);
+#endif
+        // First-Touch Paralelo por linhas Y (distribui as páginas pelos CCDs e inicializa tudo para o Valgrind!)
+        #pragma omp parallel for schedule(static)
+        for (int y_i = 0; y_i < ny; ++y_i) {
+            for (int x_i = 0; x_i < nx; ++x_i) {
+                flag_field_ptr[static_cast<size_t>(y_i) * nx + x_i] = CellType::FLUID;
+            }
+        }
+        // Limpa os bytes de padding finais para o Valgrind não se queixar se forem lidos
+        for (size_t i = size; i < flag_bytes; ++i) {
+            flag_field_ptr[i] = CellType::FLUID;
+        }
 
         if (forces) {
-            // Aloca forças externas X e Y (opcional)
             size_t force_bytes = 2 * plane_pitch * sizeof(double);
             fxy_raw_ptr = static_cast<double*>(std::aligned_alloc(ALIGNMENT, force_bytes));
-
             if (!fxy_raw_ptr) {
                 deallocate();
                 throw std::bad_alloc();
             }
-
-            std::memset(fxy_raw_ptr, 0, force_bytes);
+#ifdef __linux__
+            madvise(fxy_raw_ptr, force_bytes, MADV_HUGEPAGE);
+#endif
             fx_ptr = fxy_raw_ptr;
             fy_ptr = fxy_raw_ptr + plane_pitch;
+            // Nota: Não fazemos memset aqui! O Custom::initialize_custom_forces já faz o First-Touch paralelo por linhas Y!
         }
     }
 
@@ -157,6 +167,10 @@ struct Grid {
             deallocate();
             throw std::bad_alloc();
         }
+        
+#ifdef __linux__
+        madvise(f_raw_ptr, total_f_bytes, MADV_HUGEPAGE);
+#endif
 
         f0_ptr = f_raw_ptr;
         f1_ptr = f_raw_ptr + plane_pitch;

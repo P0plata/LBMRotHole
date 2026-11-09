@@ -15,8 +15,8 @@ struct Simconfig;
 namespace Custom {
 
     struct CustomForces {
-        double* fx_ptr{nullptr}; // Forças externas X (opcional)
-        double* fy_ptr{nullptr}; // Forças externas Y (opcional)
+        double* __restrict__  fx_ptr{nullptr}; // Forças externas X (opcional)
+        double* __restrict__  fy_ptr{nullptr}; // Forças externas Y (opcional)
         int nx{0};
         int ny{0};
     };

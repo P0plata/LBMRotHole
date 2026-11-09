@@ -6,6 +6,7 @@
 #include <iomanip>
 #include <omp.h>
 
+
 int main(int argc, char* argv[]) {
     try {
         const std::string config_path = (argc > 1) ? argv[1] : "config.json";
@@ -17,7 +18,6 @@ int main(int argc, char* argv[]) {
 
         Simconfig cfg{};
         Initializer::load_config_from_json(config_path, cfg);
-
         std::cout << "[2/3] A construir geometria e alocar memoria SoA...\n";
         auto t_init_start = std::chrono::high_resolution_clock::now();
 
@@ -37,6 +37,7 @@ int main(int argc, char* argv[]) {
         std::cout << "      -> Inlet / Outlet: " << grid.inlet_nodes.size() << " / " << grid.outlet_nodes.size() << "\n";
         std::cout << "      -> Threads OpenMP: " << omp_get_max_threads() << "\n";
         std::cout << "      -> Tempo de Init:  " << std::setprecision(3) << init_sec << " s\n";
+
 
         std::cout << "[3/3] A executar simulacao (" << cfg.max_steps << " passos)...\n";
         auto t_sim_start = std::chrono::high_resolution_clock::now();
@@ -84,6 +85,9 @@ int main(int argc, char* argv[]) {
         std::cout << "  Performance Global: " << std::fixed << std::setprecision(2) << mlups_total << " MLUPS (Com I/O)\n";
         std::cout << "========================================================\n";
 
+        // Auditoria de integridade da grelha (debugging)
+        utils::audit_grid_integrity(grid);
+
     } catch (const std::exception& e) {
         std::cerr << "\n[ERRO FATAL] " << e.what() << "\n";
         return EXIT_FAILURE;
@@ -91,3 +95,5 @@ int main(int argc, char* argv[]) {
 
     return EXIT_SUCCESS;
 }
+
+

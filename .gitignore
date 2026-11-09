@@ -11,6 +11,8 @@ bin/
 *.nsys-rep
 *.qdstrm
 *.ncu-rep
+*.data
+*.data.*
 
 # Dados volumosos de simulação
 *.vtk
@@ -19,7 +21,6 @@ bin/
 *.raw
 *.csv
 *.pvd
-*.data
 *.vtp
 
 

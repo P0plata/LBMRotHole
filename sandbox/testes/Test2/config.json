@@ -1,13 +1,13 @@
 {
   "simulation": {
     "use_custom_init": false,
-    "nx": 500,
-    "ny": 500,
+    "nx": 2000,
+    "ny": 2000,
     "nz": 1,
     "grid_type": 0,
     "max_steps": 8000,
-    "export_freq": 50,
-    "output_prefix": "output_funnel/grav_funnel",
+    "export_freq": 100,
+    "output_prefix": "output_funnel/grav_funnel_big",
     "max_allowed_bytes": "8GB",
     "rho0": 100.0,
     "ux0": 0.0,
@@ -15,14 +15,14 @@
   },
   "collision": {
     "type": "BGK",
-    "tau_BGK": 0.60,
+    "tau_BGK": 0.80,
     "tau_TRT": 1.0,
     "tau_MRT_filename": ""
   },
   "forces": {
     "use_forces": true,
-    "center_x": 250,
-    "center_y": 250,
+    "center_x": 1000,
+    "center_y": 1000,
     "g_mass": 300.0
   },
   "boundaries": {
@@ -36,9 +36,9 @@
       "type": "PROCEDURAL",
       "format": "CIRCLE",
       "typeboundary": "SPONGE",
-      "offset_x": 250,
-      "offset_y": 250,
-      "radius": 20.0,
+      "offset_x": 1000,
+      "offset_y": 1000,
+      "radius": 100.0,
       "sponge_width": 0.0,
       "sponge_sigma_max": 0.25,
       "rho": 75.0,

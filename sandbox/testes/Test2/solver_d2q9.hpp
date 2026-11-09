@@ -1,6 +1,7 @@
 #ifndef SOLVER_D2Q9_HPP
 #define SOLVER_D2Q9_HPP
 
+
 #include "grid.hpp"
 #include "custom_functions.hpp"
 #include "config_init.hpp"

@@ -3,6 +3,12 @@
 
 #include <random>
 #include <stdexcept>
+#include <immintrin.h>
+#include <cstdint>
+
+
+#define LBM_INLINE __attribute__((always_inline)) static inline
+
 
 namespace D2Q9 {
     // Ordem das 8 direções móveis (f1_ptr / f2_ptr):
@@ -19,6 +25,12 @@ namespace D2Q9 {
         1.0/36.0, 1.0/36.0, 1.0/36.0, 1.0/36.0
     };
 
+
+    constexpr double cs2     = 1.0 / 3.0;
+    constexpr double inv_cs2 = 3.0;                  // 1 / cs^2 = 3.0
+    constexpr double inv_2cs4 = 4.5;                 // 1 / (2 * cs^4) = 4.5
+    constexpr double half_inv_cs2 = 1.5;             // 1 / (2 * cs^2) = 1.5
+
     constexpr inline double compute_feq(int d, double rho, double ux, double uy, double u_sq) {
         double cu = cx[d] * ux + cy[d] * uy;
         return w[d] * rho * (1.0 + 3.0 * cu + 4.5 * cu * cu - 1.5 * u_sq);
@@ -29,8 +41,8 @@ namespace D2Q9 {
     }
 
     constexpr inline double compute_S_guo(int d, double ux, double uy, double Fx, double Fy, double u_dot_F, double force_factor) {
-        double cu = cx[d] * ux + cy[d] * uy;
-        double cF = cx[d] * Fx + cy[d] * Fy;
+        const double cu = cx[d] * ux + cy[d] * uy;
+        const double cF = cx[d] * Fx + cy[d] * Fy;
         return force_factor * w[d] * (3.0 * (cF - u_dot_F) + 9.0 * cu * cF);
     }
 
@@ -54,6 +66,24 @@ namespace D2Q9 {
     constexpr inline size_t src_idx_p(int x, int y, int nx, int ny, int d){
         return static_cast<size_t>((x - cx[d] + nx) % nx) + (static_cast<size_t>((y - cy[d] + ny) % ny) * nx);
     }
+
+    constexpr inline double compute_f_plus_trt(int d, double f[8]) {
+        return 0.5 * (f[d] + f[opp[d]]);
+    }
+
+    constexpr inline double compute_f_minus_trt(int d, double f[8]) {
+        return 0.5 * (f[d] - f[opp[d]]);
+    }
+
+    constexpr inline double compute_feq_plus_trt(int d, double rho, double ux, double uy, double u_sq) {
+        return 0.5 * (compute_feq(d, rho, ux, uy, u_sq) + compute_feq(opp[d], rho, ux, uy, u_sq));
+    }
+
+    constexpr inline double compute_feq_minus_trt(int d, double rho, double ux, double uy, double u_sq) {
+        return 0.5 * (compute_feq(d, rho, ux, uy, u_sq) - compute_feq(opp[d], rho, ux, uy, u_sq));
+    }
+
+
 
 }
 

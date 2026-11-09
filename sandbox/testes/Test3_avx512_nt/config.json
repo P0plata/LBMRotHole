@@ -1,0 +1,49 @@
+{
+  "simulation": {
+    "use_custom_init": false,
+    "nx": 2000,
+    "ny": 2000,
+    "nz": 1,
+    "grid_type": 0,
+    "max_steps": 8000,
+    "export_freq": 100,
+    "output_prefix": "output_funnel/grav_funnel_big",
+    "max_allowed_bytes": "8GB",
+    "rho0": 100.0,
+    "ux0": 0.0,
+    "uy0": 0.0
+  },
+  "collision": {
+    "type": "BGK",
+    "tau_BGK": 0.80,
+    "tau_TRT": 1.0,
+    "tau_MRT_filename": ""
+  },
+  "forces": {
+    "use_forces": true,
+    "center_x": 1000,
+    "center_y": 1000,
+    "g_mass": 300.0
+  },
+  "boundaries": {
+    "x0": { "condition": "PERIODIC", "cell_type": "FLUID", "rho": 100.0, "vx": 0.0, "vy": 0.0, "sponge_width": 25, "sponge_sigma_max": 0.15 },
+    "x1": { "condition": "PERIODIC", "cell_type": "FLUID", "rho": 100.0, "vx": 0.0, "vy": 0.0, "sponge_width": 25, "sponge_sigma_max": 0.15 },
+    "y0": { "condition": "PERIODIC", "cell_type": "FLUID", "rho": 100.0, "vx": 0.0, "vy": 0.0, "sponge_width": 25, "sponge_sigma_max": 0.15 },
+    "y1": { "condition": "PERIODIC", "cell_type": "FLUID", "rho": 100.0, "vx": 0.0, "vy": 0.0, "sponge_width": 25, "sponge_sigma_max": 0.15 }
+  },
+  "obstacles": [
+    {
+      "type": "PROCEDURAL",
+      "format": "CIRCLE",
+      "typeboundary": "SPONGE",
+      "offset_x": 1000,
+      "offset_y": 1000,
+      "radius": 100.0,
+      "sponge_width": 0.0,
+      "sponge_sigma_max": 0.25,
+      "rho": 75.0,
+      "vx": 0.0,
+      "vy": 0.0
+    }
+  ]
+}

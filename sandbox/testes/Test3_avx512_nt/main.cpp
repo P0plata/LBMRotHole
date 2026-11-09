@@ -1,0 +1,113 @@
+#include "config_init.hpp"
+#include "grid.hpp"
+#include "solver_d2q9.hpp"
+#include <iostream>
+#include <chrono>
+#include <iomanip>
+#include <omp.h>
+
+template <CollisionType ColType, bool UseForces>
+static void dispatch_nt(bool use_nt, Grid& grid, const Simconfig& cfg, Custom::CustomForces& forces_struct) {
+    if (use_nt) {
+        SolverD2Q9::run_simulation<ColType, UseForces, true>(grid, cfg, forces_struct);
+    } else {
+        SolverD2Q9::run_simulation<ColType, UseForces, false>(grid, cfg, forces_struct);
+    }
+}
+
+int main(int argc, char* argv[]) {
+    try {
+        const std::string config_path = (argc > 1) ? argv[1] : "config.json";
+
+        std::cout << "========================================================\n";
+        std::cout << "  LBM D2Q9 High-Performance Solver\n";
+        std::cout << "========================================================\n";
+        std::cout << "[1/3] A carregar configuracao: " << config_path << "...\n";
+
+        Simconfig cfg{};
+        Initializer::load_config_from_json(config_path, cfg);
+        std::cout << "[2/3] A construir geometria e alocar memoria SoA...\n";
+        auto t_init_start = std::chrono::high_resolution_clock::now();
+
+        Grid grid{};
+        Custom::CustomForces forces_struct{};
+        Initializer::initialize(grid, cfg, forces_struct);
+
+        auto t_init_end = std::chrono::high_resolution_clock::now();
+        double init_sec = std::chrono::duration<double>(t_init_end - t_init_start).count();
+
+        double mem_mb = static_cast<double>(grid.memory_usage_bytes()) / (1024.0 * 1024.0);
+        std::cout << "      -> Grelha:         " << grid.nx << " x " << grid.ny 
+                  << " (" << grid.size << " celulas)\n";
+        std::cout << "      -> Memoria Total:  " << std::fixed << std::setprecision(2) << mem_mb << " MiB\n";
+        std::cout << "      -> Wall Links:     " << grid.wall_links.size() << "\n";
+        std::cout << "      -> Sponge Nodes:   " << grid.sponge_nodes.size() << "\n";
+        std::cout << "      -> Inlet / Outlet: " << grid.inlet_nodes.size() << " / " << grid.outlet_nodes.size() << "\n";
+        std::cout << "      -> Threads OpenMP: " << omp_get_max_threads() << "\n";
+        std::cout << "      -> Tempo de Init:  " << std::setprecision(3) << init_sec << " s\n";
+
+        size_t l3_bytes = utils::get_system_l3_cache_bytes();
+        // Ativa Non-Temporal Stores apenas se a grelha ultrapassar 85% da Cache L3 total do CPU!
+        bool use_nt = (grid.memory_usage_bytes() > static_cast<size_t>(l3_bytes * 3ULL));
+
+        std::cout << "      -> Cache L3 CPU:   " << (l3_bytes / (1024 * 1024)) << " MiB ("
+                  << (use_nt ? "Modo RAM Direct [NT-Stores]" : "Modo In-Cache [Normal Stores]") << ")\n";
+
+        std::cout << "[3/3] A executar simulacao (" << cfg.max_steps << " passos)...\n";
+        auto t_sim_start = std::chrono::high_resolution_clock::now();
+
+        // Seleciona a versão pré-compilada do template (zero branches lá dentro!)
+        switch (cfg.type_collision) {
+            case CollisionType::BGK:
+                if (cfg.use_forces) {
+                    dispatch_nt<CollisionType::BGK, true>(use_nt, grid, cfg, forces_struct);
+                } else {
+                    dispatch_nt<CollisionType::BGK, false>(use_nt, grid, cfg, forces_struct);
+                }
+                break;
+            case CollisionType::TRT:
+                if (cfg.use_forces) {
+                    dispatch_nt<CollisionType::TRT, true>(use_nt, grid, cfg, forces_struct);
+                } else {
+                    dispatch_nt<CollisionType::TRT, false>(use_nt, grid, cfg, forces_struct);
+                }
+                break;
+            case CollisionType::MRT:
+                if (cfg.use_forces) {
+                    dispatch_nt<CollisionType::MRT, true>(use_nt, grid, cfg, forces_struct);
+                } else {
+                    dispatch_nt<CollisionType::MRT, false>(use_nt, grid, cfg, forces_struct);
+                }
+                break;
+        }
+
+        auto t_sim_end = std::chrono::high_resolution_clock::now();
+        double total_sec   = std::chrono::duration<double>(t_sim_end - t_sim_start).count();
+        double io_sec      = grid.vtk_io_time_sec;
+        double compute_sec = std::max(1e-9, total_sec - io_sec);
+
+        double mlups_pure  = (static_cast<double>(grid.size) * cfg.max_steps) / (compute_sec * 1e6);
+        double mlups_total = (static_cast<double>(grid.size) * cfg.max_steps) / (total_sec * 1e6);
+        double io_pct      = (io_sec / total_sec) * 100.0;
+
+        std::cout << "========================================================\n";
+        std::cout << "  Simulacao Concluida com Sucesso!\n";
+        std::cout << "  Tempo Total:        " << std::fixed << std::setprecision(3) << total_sec << " s\n";
+        std::cout << "  -> Tempo Solver:    " << std::fixed << std::setprecision(3) << compute_sec << " s (" << std::setprecision(1) << (100.0 - io_pct) << "%)\n";
+        std::cout << "  -> Tempo VTK (I/O): " << std::fixed << std::setprecision(3) << io_sec << " s (" << std::setprecision(1) << io_pct << "%)\n";
+        std::cout << "  Performance Solver: " << std::fixed << std::setprecision(2) << mlups_pure << " MLUPS (Puro)\n";
+        std::cout << "  Performance Global: " << std::fixed << std::setprecision(2) << mlups_total << " MLUPS (Com I/O)\n";
+        std::cout << "========================================================\n";
+
+        // Auditoria de integridade da grelha (debugging)
+        utils::audit_grid_integrity(grid);
+
+    } catch (const std::exception& e) {
+        std::cerr << "\n[ERRO FATAL] " << e.what() << "\n";
+        return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
+}
+
+
