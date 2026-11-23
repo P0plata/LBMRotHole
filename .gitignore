@@ -32,3 +32,4 @@ bin/
 
 # Pasta simulação
 output*/
+validation_results/

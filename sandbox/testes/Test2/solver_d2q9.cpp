@@ -109,29 +109,86 @@ LBM_INLINE void collide_trt(double& f0, double f[8], double rho, double ux, doub
         const double force_factor_m = (1.0 - 0.5 * omega_m);
         const double u_dot_F = ux * fx + uy * fy;
 
-        f0   += D2Q9::compute_S0_guo(u_dot_F, force_factor);
+        f0   += D2Q9::compute_S0_guo(u_dot_F, force_factor_p);
         
-        f[0] += D2Q9::compute_S_guo(0, ux, uy, fx, fy, u_dot_F, force_factor);
-        f[1] += D2Q9::compute_S_guo(1, ux, uy, fx, fy, u_dot_F, force_factor);
-        f[2] += D2Q9::compute_S_guo(2, ux, uy, fx, fy, u_dot_F, force_factor);
-        f[3] += D2Q9::compute_S_guo(3, ux, uy, fx, fy, u_dot_F, force_factor);
-        f[4] += D2Q9::compute_S_guo(4, ux, uy, fx, fy, u_dot_F, force_factor);
-        f[5] += D2Q9::compute_S_guo(5, ux, uy, fx, fy, u_dot_F, force_factor);
-        f[6] += D2Q9::compute_S_guo(6, ux, uy, fx, fy, u_dot_F, force_factor);
-        f[7] += D2Q9::compute_S_guo(7, ux, uy, fx, fy, u_dot_F, force_factor);
+        const double force_plus_02 = D2Q9::compute_S_guo_plus_trt(0, ux, uy, fx, fy, u_dot_F, force_factor_p);
+        const double force_plus_13 = D2Q9::compute_S_guo_plus_trt(1, ux, uy, fx, fy, u_dot_F, force_factor_p);
+        const double force_plus_46 = D2Q9::compute_S_guo_plus_trt(4, ux, uy, fx, fy, u_dot_F, force_factor_p);
+        const double force_plus_57 = D2Q9::compute_S_guo_plus_trt(5, ux, uy, fx, fy, u_dot_F, force_factor_p);
+
+        const double force_minus_02 = D2Q9::compute_S_guo_minus_trt(0, fx, fy, force_factor_m);
+        const double force_minus_13 = D2Q9::compute_S_guo_minus_trt(1, fx, fy, force_factor_m);
+        const double force_minus_46 = D2Q9::compute_S_guo_minus_trt(4, fx, fy, force_factor_m);
+        const double force_minus_57 = D2Q9::compute_S_guo_minus_trt(5, fx, fy, force_factor_m);
+        
+        f[0] += force_plus_02 + force_minus_02;
+        f[1] += force_plus_13 + force_minus_13;
+        f[2] += force_plus_02 - force_minus_02;
+        f[3] += force_plus_13 - force_minus_13;
+        f[4] += force_plus_46 + force_minus_46;
+        f[5] += force_plus_57 + force_minus_57;
+        f[6] += force_plus_46 - force_minus_46;
+        f[7] += force_plus_57 - force_minus_57;
     }
 
 
 }
 
+
+
+/* =======================================================================================
+ * OTIMIZAÇÃO DO OPERADOR MRT COMPLETO ATÉ O(u^4) (Lallemand & Luo, 2000 + Guo, 2002 - D2Q9)
+ * =======================================================================================
+ * Este solver evita a multiplicação pesada de matrizes 9x9 (M e M^-1) no ciclo principal,
+ * aplicando a ortogonalidade de Gram-Schmidt e simetrias de paridade.
+ *
+ * 1. ORDEM DAS POPULAÇÕES NO SOLVER:
+ *    - f0:       Repouso (0, 0)
+ *    - Cardinais (f_card): f[0]=E(1,0), f[1]=N(0,1), f[2]=W(-1,0), f[3]=S(0,-1)
+ *    - Diagonais (f_diag): f[4]=NE(1,1), f[5]=NW(-1,1), f[6]=SW(-1,-1), f[7]=SE(1,-1)
+ *
+ * 2. TRATAMENTO DOS 3 MOMENTOS CONSERVADOS (m0, m3, m5):
+ *    - m0 (rho): Massa/Densidade      => Norma(M0)^2 = 9. Como m0 = m0_eq e Psi_0 = 0, dm0 = 0 sempre.
+ *    - m3 (jx):  Momento linear em X  => Norma(M3)^2 = 6.
+ *    - m5 (jy):  Momento linear em Y  => Norma(M5)^2 = 6.
+ *    - SEM FORÇAS (UseForces = false): m3 = m3_eq e m5 = m5_eq, logo dm3 = dm5 = 0 (poupam-se FLOPs).
+ *    - COM FORÇAS (UseForces = true):  Como a velocidade macroscópica já inclui o shift de Guo
+ *      (rho*u = j + 0.5*F), temos (m3 - m3_eq) = -0.5*Fx. Na equação de colisão MRT:
+ *      Delta_m3 = s3*(-0.5*Fx) - (1 - 0.5*s3)*Fx = -Fx (independente de s3!).
+ *      Dividindo pela norma^2 (6), resulta em dm3 = -Fx / 6 e dm5 = -Fy / 6.
+ *
+ * 3. CÁLCULO DOS 6 MOMENTOS NÃO-CONSERVADOS ATIVOS (Matriz M Ortogonal):
+ *    - m1 (e):   Energia cinética           => Norma(M1)^2 = 36
+ *    - m2 (eps): Energia ao quadrado        => Norma(M2)^2 = 36  [Inclui termo 4ª ordem: +9*rho*ux^2*uy^2]
+ *    - m4 (qx):  Fluxo de energia em X      => Norma(M4)^2 = 12  [Inclui termo 3ª ordem: +3*rho*ux*uy^2]
+ *    - m6 (qy):  Fluxo de energia em Y      => Norma(M6)^2 = 12  [Inclui termo 3ª ordem: +3*rho*uy*ux^2]
+ *    - m7 (pxx): Tensão normal (X vs Y)     => Norma(M7)^2 = 4
+ *    - m8 (pxy): Tensão de corte (Diagonal) => Norma(M8)^2 = 4
+ *
+ * 4. CORREÇÃO DE INVARIÂNCIA DE GALILEU (Termos Cúbicos O(u^3) e Quárticos O(u^4)):
+ *    - Enquanto c_ix^3 = c_ix na grelha D2Q9 impede termos puros ux^3, os momentos cruzados
+ *      c_ix*c_iy^2 e c_ix^2*c_iy^2 são independentes e retêm os termos de Maxwell-Boltzmann
+ *      (3*rho*ux*uy^2, 3*rho*uy*ux^2 e 9*rho*ux^2*uy^2) e as respetivas derivadas de força
+ *      Psi_k = (F / rho) . grad_u(m_k^eq), aumentando a estabilidade a números de Mach elevados.
+ *
+ * 5. OS FATORES DE NORMALIZAÇÃO (1/36, 1/12, 1/6, 1/4) E ATUALIZAÇÃO REVERSA (M^-1):
+ *    - Como as linhas de M são mutuamente ortogonais, M * M^T = diag(9, 36, 36, 6, 12, 6, 12, 4, 4).
+ *    - Assim, a matriz inversa exata é simplesmente M^-1 = M^T * diag(1/Norma^2).
+ *    - Fundimos a relaxação s_k*(m - meq), a fonte (1 - 0.5*s_k)*Psi_k e (1/Norma^2) num só "dm_k".
+ *    - A projeção final f^* = f - M^T * dm aplica diretamente as colunas de M a cada "dm_k".
+ * ======================================================================================= */
 template <bool UseForces>
-LBM_INLINE  void collide_mrt(double& f0, double f[8], double rho, double ux, double uy,
-                               const double s_mrt[9]) noexcept {
-    const double u_sq = ux * ux + uy * uy;
+LBM_INLINE void collide_mrt(double& f0, double f[8], double rho, double ux, double uy,
+                            double fx, double fy, const double s_mrt[9]) noexcept {
+    const double ux2    = ux * ux;
+    const double uy2    = uy * uy;
+    const double u_sq   = ux2 + uy2;
+    const double ux2uy2 = ux2 * uy2;
+
     const double f_card = f[0] + f[1] + f[2] + f[3];
     const double f_diag = f[4] + f[5] + f[6] + f[7];
 
-    // Momentos atuais (m1=e, m2=eps, m4=qx, m6=qy, m7=pxx, m8=pxy)
+    // 1. Momentos atuais não-conservados (m = M * f)
     const double m1 = -4.0 * f0 - f_card + 2.0 * f_diag;
     const double m2 =  4.0 * f0 - 2.0 * f_card + f_diag;
     const double m4 = -2.0 * (f[0] - f[2]) + (f[4] - f[5] - f[6] + f[7]);
@@ -139,30 +196,64 @@ LBM_INLINE  void collide_mrt(double& f0, double f[8], double rho, double ux, dou
     const double m7 = (f[0] - f[1] + f[2] - f[3]);
     const double m8 = (f[4] - f[5] + f[6] - f[7]);
 
-    // Momentos de equilíbrio
+    // 2. Momentos de equilíbrio completos até O(u^4) (Maxwell-Boltzmann fatorizado)
     const double m1_eq = rho * (-2.0 + 3.0 * u_sq);
-    const double m2_eq = rho * ( 1.0 - 3.0 * u_sq);
-    const double m4_eq = -rho * ux;
-    const double m6_eq = -rho * uy;
-    const double m7_eq = rho * (ux * ux - uy * uy);
+    const double m2_eq = rho * ( 1.0 - 3.0 * u_sq + 9.0 * ux2uy2);
+    const double m4_eq = rho * (-ux  + 3.0 * ux * uy2);
+    const double m6_eq = rho * (-uy  + 3.0 * uy * ux2);
+    const double m7_eq = rho * (ux2 - uy2);
     const double m8_eq = rho * (ux * uy);
 
-    const double dm1 = s_mrt[1] * (m1 - m1_eq) * (1.0 / 36.0);
-    const double dm2 = s_mrt[2] * (m2 - m2_eq) * (1.0 / 36.0);
-    const double dm4 = s_mrt[4] * (m4 - m4_eq) * (1.0 / 12.0);
-    const double dm6 = s_mrt[6] * (m6 - m6_eq) * (1.0 / 12.0);
-    const double dm7 = s_mrt[7] * (m7 - m7_eq) * (1.0 / 4.0);
-    const double dm8 = s_mrt[8] * (m8 - m8_eq) * (1.0 / 4.0);
+    // 3. Relaxação no espaço de momentos: s_k * (m_k - m_k^eq)
+    double dm1 = s_mrt[1] * (m1 - m1_eq);
+    double dm2 = s_mrt[2] * (m2 - m2_eq);
+    double dm4 = s_mrt[4] * (m4 - m4_eq);
+    double dm6 = s_mrt[6] * (m6 - m6_eq);
+    double dm7 = s_mrt[7] * (m7 - m7_eq);
+    double dm8 = s_mrt[8] * (m8 - m8_eq);
 
+    // 4. Inclusão das Forças de Guo completas no espaço de momentos: -(1 - 0.5*s_k) * Psi_k
+    double dm3 = 0.0;
+    double dm5 = 0.0;
+
+    if constexpr (UseForces) {
+        const double u_dot_F = ux * fx + uy * fy;
+
+        const double psi1 =  6.0 * u_dot_F;
+        const double psi2 = -6.0 * u_dot_F + 18.0 * (ux * fx * uy2 + ux2 * uy * fy);
+        const double psi4 = -fx + 3.0 * (fx * uy2 + 2.0 * ux * uy * fy);
+        const double psi6 = -fy + 3.0 * (fy * ux2 + 2.0 * uy * ux * fx);
+        const double psi7 =  2.0 * (ux * fx - uy * fy);
+        const double psi8 =  ux * fy + uy * fx;
+
+        dm1 -= (1.0 - 0.5 * s_mrt[1]) * psi1;
+        dm2 -= (1.0 - 0.5 * s_mrt[2]) * psi2;
+        dm3  = (-1.0 / 6.0) * fx; // Já inclui a divisão pela norma^2 (6) da linha m3 (jx)
+        dm4 -= (1.0 - 0.5 * s_mrt[4]) * psi4;
+        dm5  = (-1.0 / 6.0) * fy; // Já inclui a divisão pela norma^2 (6) da linha m5 (jy)
+        dm6 -= (1.0 - 0.5 * s_mrt[6]) * psi6;
+        dm7 -= (1.0 - 0.5 * s_mrt[7]) * psi7;
+        dm8 -= (1.0 - 0.5 * s_mrt[8]) * psi8;
+    }
+
+    // 5. Divisão pela norma ao quadrado de cada linha (M^-1 = M^T * diag(1 / Norma^2))
+    dm1 *= (1.0 / 36.0);
+    dm2 *= (1.0 / 36.0);
+    dm4 *= (1.0 / 12.0);
+    dm6 *= (1.0 / 12.0);
+    dm7 *= (1.0 / 4.0);
+    dm8 *= (1.0 / 4.0);
+
+    // 6. Transformação inversa para o espaço de populações (f^* = f - M^T * dm)
     f0   -= ( -4.0 * dm1 + 4.0 * dm2 );
-    f[0] -= ( -dm1 - 2.0 * dm2 - 2.0 * dm4 + dm7 );
-    f[1] -= ( -dm1 - 2.0 * dm2 - 2.0 * dm6 - dm7 );
-    f[2] -= ( -dm1 - 2.0 * dm2 + 2.0 * dm4 + dm7 );
-    f[3] -= ( -dm1 - 2.0 * dm2 + 2.0 * dm6 - dm7 );
-    f[4] -= (  2.0 * dm1 + dm2 + dm4 + dm6 + dm8 );
-    f[5] -= (  2.0 * dm1 + dm2 - dm4 + dm6 - dm8 );
-    f[6] -= (  2.0 * dm1 + dm2 - dm4 - dm6 + dm8 );
-    f[7] -= (  2.0 * dm1 + dm2 + dm4 - dm6 - dm8 );
+    f[0] -= ( -dm1 - 2.0 * dm2 + dm3 - 2.0 * dm4 + dm7 );
+    f[1] -= ( -dm1 - 2.0 * dm2 + dm5 - 2.0 * dm6 - dm7 );
+    f[2] -= ( -dm1 - 2.0 * dm2 - dm3 + 2.0 * dm4 + dm7 );
+    f[3] -= ( -dm1 - 2.0 * dm2 - dm5 + 2.0 * dm6 - dm7 );
+    f[4] -= (  2.0 * dm1 + dm2 + dm3 + dm4 + dm5 + dm6 + dm8 );
+    f[5] -= (  2.0 * dm1 + dm2 - dm3 - dm4 + dm5 + dm6 - dm8 );
+    f[6] -= (  2.0 * dm1 + dm2 - dm3 - dm4 - dm5 - dm6 + dm8 );
+    f[7] -= (  2.0 * dm1 + dm2 + dm3 + dm4 - dm5 - dm6 - dm8 );
 }
 
 // Disparo em tempo de compilação para a função de colisão correta
@@ -175,7 +266,7 @@ LBM_INLINE  void dispatch_collision(double& f0, double f[8], double rho, double 
     } else if constexpr (ColType == CollisionType::TRT) {
         collide_trt<UseForces>(f0, f, rho, ux, uy, fx, fy, omega_bgk, omega_trt);
     } else if constexpr (ColType == CollisionType::MRT) {
-        collide_mrt<UseForces>(f0, f, rho, ux, uy, s_mrt);
+        collide_mrt<UseForces>(f0, f, rho, ux, uy, fx, fy, s_mrt);
     }
 }
 

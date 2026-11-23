@@ -32,7 +32,7 @@ namespace D2Q9 {
     constexpr double half_inv_cs2 = 1.5;             // 1 / (2 * cs^2) = 1.5
 
     constexpr inline double compute_feq(int d, double rho, double ux, double uy, double u_sq) {
-        double cu = cx[d] * ux + cy[d] * uy;
+        const double cu = cx[d] * ux + cy[d] * uy;
         return w[d] * rho * (1.0 + 3.0 * cu + 4.5 * cu * cu - 1.5 * u_sq);
     }
 
@@ -76,14 +76,26 @@ namespace D2Q9 {
     }
 
     constexpr inline double compute_feq_plus_trt(int d, double rho, double ux, double uy, double u_sq) {
-        return 0.5 * (compute_feq(d, rho, ux, uy, u_sq) + compute_feq(opp[d], rho, ux, uy, u_sq));
+        const double cu = cx[d] * ux + cy[d] * uy;
+        return w[d] * rho * (1.0 + 4.5 * cu * cu - 1.5 * u_sq);
     }
 
     constexpr inline double compute_feq_minus_trt(int d, double rho, double ux, double uy, double u_sq) {
-        return 0.5 * (compute_feq(d, rho, ux, uy, u_sq) - compute_feq(opp[d], rho, ux, uy, u_sq));
+        const double cu = cx[d] * ux + cy[d] * uy;
+        return w[d] * rho * (3.0 * cu);
     }
 
-
+    
+    constexpr inline double compute_S_guo_plus_trt(int d, double ux, double uy,double Fx, double Fy, double u_dot_F, double force_factor){
+        const double cu = cx[d] * ux + cy[d] * uy;
+        const double cF = cx[d] * Fx + cy[d] * Fy;
+        return force_factor * w[d] * (-3* u_dot_F + 9 * cu  * cF);
+    }
+    
+    constexpr inline double compute_S_guo_minus_trt(int d, double Fx, double Fy, double force_factor){
+        const double cF = cx[d] * Fx + cy[d] * Fy;
+        return force_factor * (3 * w[d] * cF);
+    }
 
 }
 

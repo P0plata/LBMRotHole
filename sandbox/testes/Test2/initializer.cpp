@@ -152,6 +152,19 @@ void Initializer::load_config_from_json(const std::string& json_filepath, Simcon
                 for (int i = 0; i < 9; ++i) {
                     mrt_file >> cfg.s_MRT[i];
                 }
+            } else {
+                // Default automático se não houver ficheiro: usa s_7 = s_8 = 1/tau_BGK (mesma viscosidade)
+                // e taxas standard estáveis de Lallemand & Luo para os momentos não-hidrodinâmicos
+                const double s_nu = 1.0 / cfg.tau_BGK;
+                cfg.s_MRT[0] = 0.0;   // rho (conservado)
+                cfg.s_MRT[1] = 1.4;   // e (modo acústico / bulk viscosity)
+                cfg.s_MRT[2] = 1.4;   // eps
+                cfg.s_MRT[3] = 0.0;   // jx (conservado)
+                cfg.s_MRT[4] = 1.2;   // qx
+                cfg.s_MRT[5] = 0.0;   // jy (conservado)
+                cfg.s_MRT[6] = 1.2;   // qy
+                cfg.s_MRT[7] = s_nu;  // pxx (viscosidade de corte!)
+                cfg.s_MRT[8] = s_nu;  // pxy (viscosidade de corte!)
             }
         }
     }
@@ -163,6 +176,7 @@ void Initializer::load_config_from_json(const std::string& json_filepath, Simcon
             cfg.center_x = f.value("center_x", 0);
             cfg.center_y = f.value("center_y", 0);
             cfg.g_mass   = f.value("g_mass", 1.0);
+            cfg.rot_factor = f.value("rot_factor", 0.0);
         }
     }
 

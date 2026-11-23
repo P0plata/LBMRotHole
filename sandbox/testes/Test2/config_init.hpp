@@ -68,6 +68,7 @@ struct Simconfig {
     int center_x{0};
     int center_y{0};
     double g_mass{1.0};
+    double rot_factor{0.0};
 
     // Geometry
     std::vector<GeometryConfig> obstacles;
