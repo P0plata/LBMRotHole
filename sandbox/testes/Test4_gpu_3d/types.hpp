@@ -5,7 +5,11 @@
 #include <cstdint>
 #include <vector>
 
-#define LBM_INLINE __attribute__((always_inline)) static inline
+#ifdef __CUDACC__
+    #define LBM_INLINE __host__ __device__ __forceinline__
+#else
+    #define LBM_INLINE __attribute__((always_inline)) inline
+#endif
 
 // Trocar entre float (FP32 - GPU/3D grande) e double (FP64 - verificação de precisão)
 using lbm_real = float;
